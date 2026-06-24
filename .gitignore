@@ -1,0 +1,14 @@
+target/
+desktop/dist/
+desktop/node_modules/
+desktop/.svelte-kit/
+desktop/.vite/
+*.log
+.DS_Store
+.fluxion/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.fluxionpart
+.playwright-cli/
+output/

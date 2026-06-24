@@ -1,0 +1,51 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/fluxion-core",
+  "crates/fluxion-storage",
+  "crates/fluxion-platform",
+  "crates/fluxion-http",
+  "crates/fluxion-ftp",
+  "crates/fluxion-sftp",
+  "crates/fluxion-bt",
+  "crates/fluxion-runtime",
+  "crates/fluxion-tauri-bridge",
+  "crates/fluxion-cli",
+  "desktop/src-tauri",
+]
+
+[workspace.package]
+edition = "2024"
+license = "Apache-2.0"
+rust-version = "1.96"
+
+[workspace.dependencies]
+anyhow = "1.0.98"
+async-trait = "0.1.88"
+base64 = "0.22.1"
+bytes = "1.10.1"
+chrono = { version = "0.4.41", features = ["serde"] }
+clap = { version = "4.5.40", features = ["derive", "env"] }
+futures = "0.3.31"
+librqbit = { version = "9.0.0-rc.0", default-features = false, features = ["default-tls"] }
+reqwest = { version = "0.12.22", default-features = false, features = ["rustls-tls", "stream", "json"] }
+russh = "0.61.2"
+russh-sftp = "2.3.0"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+sha2 = "0.10.9"
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "sqlite", "chrono", "uuid", "json"] }
+suppaftp = { version = "8.0.4", default-features = false, features = ["tokio"] }
+tauri = { version = "2.0.0", default-features = false, features = ["wry"] }
+tauri-build = "2.0.0"
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tempfile = "3.20.0"
+thiserror = "2.0.12"
+tokio = { version = "1.45.1", features = ["full"] }
+tokio-util = "0.7.15"
+toml = "0.8.23"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "fmt"] }
+url = { version = "2.5.4", features = ["serde"] }
+uuid = { version = "1.17.0", features = ["v4", "serde"] }
