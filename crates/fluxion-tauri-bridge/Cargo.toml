@@ -1,0 +1,17 @@
+[package]
+name = "fluxion-tauri-bridge"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+fluxion-core = { path = "../fluxion-core" }
+serde.workspace = true
+tauri.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-opener.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+
