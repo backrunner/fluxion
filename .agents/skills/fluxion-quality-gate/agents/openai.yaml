@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fluxion Quality Gate"
+  short_description: "Define tests and verification gates"
+  default_prompt: "Use $fluxion-quality-gate to verify a Fluxion change before completion."

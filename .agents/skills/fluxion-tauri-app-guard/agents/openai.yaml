@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fluxion Tauri App Guard"
+  short_description: "Guide desktop UI and Tauri bridge work"
+  default_prompt: "Use $fluxion-tauri-app-guard to implement Fluxion App UI or commands."

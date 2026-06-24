@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fluxion Transfer Security Guard"
+  short_description: "Protect credentials, paths, and logs"
+  default_prompt: "Use $fluxion-transfer-security-guard to review Fluxion transfer security."

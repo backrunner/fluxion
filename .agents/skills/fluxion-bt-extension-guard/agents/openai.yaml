@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fluxion BT Extension Guard"
+  short_description: "Guide BitTorrent extension design"
+  default_prompt: "Use $fluxion-bt-extension-guard to design or implement BT support."

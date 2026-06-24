@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fluxion Requirements Guard"
+  short_description: "Keep Fluxion scope and requirements aligned"
+  default_prompt: "Use $fluxion-requirements-guard to calibrate this Fluxion change against project requirements."
