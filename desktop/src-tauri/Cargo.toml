@@ -1,0 +1,18 @@
+[package]
+name = "fluxion-app"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+fluxion-runtime = { path = "../../crates/fluxion-runtime" }
+fluxion-tauri-bridge = { path = "../../crates/fluxion-tauri-bridge" }
+tauri.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-opener.workspace = true
+

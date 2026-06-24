@@ -1,0 +1,162 @@
+// Fluxion base styles — reset, body, typography, scrollbars, theme root.
+@use './tokens' as *;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  @include theme-dark;
+}
+
+[data-theme='light'] {
+  @include theme-light;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: $font-sans;
+  font-size: $fs-base;
+  line-height: $lh-normal;
+  color: var(--text);
+  background: var(--bg);
+  background-image:
+    radial-gradient(1200px 600px at 100% -10%, rgba(249, 115, 22, 0.06), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(45, 212, 191, 0.05), transparent 60%),
+    linear-gradient(180deg, var(--bg-gradient), var(--bg));
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+#app {
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: $fw-semibold;
+  line-height: $lh-tight;
+  color: var(--text-strong);
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+// Global tactile press feedback: every button nudges down 1px on click so the
+// whole app feels responsive without per-component work. Elements that already
+// define their own :active transform win via specificity (they're scoped).
+button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+// Unified form control styling. Applied via the `.fx-input` / `.fx-textarea`
+// classes so per-component `:global(input)` leaks are avoided and the look is
+// consistent across the new-task dialog, settings, and detail panes.
+.fx-input,
+.fx-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: $radius-md;
+  border: 1px solid var(--border);
+  background: var(--surface-3);
+  color: var(--text);
+  padding: 9px $space-3;
+  font-size: $fs-sm;
+  line-height: $lh-normal;
+  transition: border-color $dur-fast $ease-out, background $dur-fast $ease-out,
+    box-shadow $dur-fast $ease-out;
+
+  &::placeholder {
+    color: var(--text-faint);
+  }
+  &:hover:not(:disabled):not(:focus) {
+    border-color: var(--border-strong);
+  }
+  &:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: var(--surface);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.fx-textarea {
+  resize: vertical;
+  font-family: $font-mono;
+  font-size: $fs-xs;
+  line-height: $lh-normal;
+}
+
+::selection {
+  background: rgba(249, 115, 22, 0.28);
+  color: var(--text-strong);
+}
+
+// Global scrollbar
+body,
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: $radius-pill;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+}
+
+// Reduced motion respect
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
