@@ -1,0 +1,291 @@
+// Fluxion design tokens.
+// Drives both the dark and light themes via [data-theme] on <html>.
+// Each component `@use`s this file:  @use '../styles/tokens' as *;
+
+// ---------------------------------------------------------------------------
+// Brand accent — orange kept from the original identity, expanded to a scale.
+// ---------------------------------------------------------------------------
+$accent-50:  #fff7ed;
+$accent-100: #ffedd5;
+$accent-200: #fed7aa;
+$accent-300: #fdba74;
+$accent-400: #fb923c;
+$accent-500: #f97316; // primary
+$accent-600: #ea580c;
+$accent-700: #c2410c;
+$accent-800: #9a3412;
+$accent-900: #7c2d12;
+
+// Secondary accent — cool teal/cyan for secondary/progressing states.
+$cool-300: #5eead4;
+$cool-400: #2dd4bf;
+$cool-500: #14b8a6;
+$cool-600: #0d9488;
+
+// ---------------------------------------------------------------------------
+// Semantic state palette (per TaskState).
+// ---------------------------------------------------------------------------
+$state-good:    #34d399; // Downloading / Seeding
+$state-good-bg: rgba(52, 211, 153, 0.14);
+$state-active:  #f97316; // Resolving / Verifying (in-flight, uses accent)
+$state-active-bg: rgba(249, 115, 22, 0.14);
+$state-warn:    #fbbf24; // Queued
+$state-warn-bg: rgba(251, 191, 36, 0.14);
+$state-bad:     #f87171; // Failed
+$state-bad-bg:  rgba(248, 113, 113, 0.14);
+$state-muted:   #94a3b8; // Paused / Stopped
+$state-muted-bg: rgba(148, 163, 184, 0.14);
+$state-done:    #38bdf8; // Completed
+$state-done-bg: rgba(56, 189, 248, 0.14);
+
+// ---------------------------------------------------------------------------
+// Spacing scale (px).
+// ---------------------------------------------------------------------------
+$space-1: 4px;
+$space-2: 8px;
+$space-3: 12px;
+$space-4: 16px;
+$space-5: 20px;
+$space-6: 24px;
+$space-8: 32px;
+$space-10: 40px;
+$space-12: 48px;
+
+// ---------------------------------------------------------------------------
+// Radii. Slightly softer for a more refined, modern feel.
+// ---------------------------------------------------------------------------
+$radius-xs: 6px;
+$radius-sm: 8px;
+$radius-md: 12px;
+$radius-lg: 16px;
+$radius-xl: 22px;
+$radius-pill: 999px;
+
+// ---------------------------------------------------------------------------
+// Typography.
+// ---------------------------------------------------------------------------
+$font-sans: 'Inter', 'IBM Plex Sans', 'SF Pro Text', -apple-system,
+  BlinkMacSystemFont, 'Segoe UI', sans-serif;
+$font-mono: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', ui-monospace,
+  Menlo, Consolas, monospace;
+
+$fs-xs: 0.75rem;   // 12
+$fs-sm: 0.8125rem; // 13
+$fs-base: 0.875rem; // 14
+$fs-md: 1rem;
+$fs-lg: 1.125rem;
+$fs-xl: 1.375rem;
+$fs-2xl: 1.75rem;
+
+$fw-regular: 400;
+$fw-medium: 500;
+$fw-semibold: 600;
+$fw-bold: 700;
+
+$lh-tight: 1.15;
+$lh-snug: 1.3;
+$lh-normal: 1.5;
+
+// ---------------------------------------------------------------------------
+// Motion.
+// ---------------------------------------------------------------------------
+$ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+$ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+$dur-fast: 120ms;
+$dur-base: 200ms;
+$dur-slow: 320ms;
+
+// ---------------------------------------------------------------------------
+// Theme tokens exposed to CSS as custom properties (the single source of
+// truth consumed by components). Switched by [data-theme].
+// ---------------------------------------------------------------------------
+
+@mixin _emit-vars(
+  $bg, $bg-2, $surface, $surface-2, $surface-3, $elevated,
+  $border, $border-strong,
+  $text, $text-strong, $text-muted, $text-faint,
+  $overlay, $skeleton, $focus-ring, $scrim
+) {
+  --bg: #{$bg};
+  --bg-gradient: #{$bg-2};
+  --surface: #{$surface};
+  --surface-2: #{$surface-2};
+  --surface-3: #{$surface-3};
+  --elevated: #{$elevated};
+  --border: #{$border};
+  --border-strong: #{$border-strong};
+  --text: #{$text};
+  --text-strong: #{$text-strong};
+  --text-muted: #{$text-muted};
+  --text-faint: #{$text-faint};
+  --overlay: #{$overlay};
+  --skeleton: #{$skeleton};
+  --focus-ring: #{$focus-ring};
+  --scrim: #{$scrim};
+
+  // Brand + semantic
+  --accent: #{$accent-500};
+  --accent-hover: #{$accent-400};
+  --accent-press: #{$accent-600};
+  --accent-soft: rgba(249, 115, 22, 0.16);
+  --accent-contrast: #ffffff;
+
+  --cool: #{$cool-400};
+
+  --state-good: #{$state-good};
+  --state-good-bg: #{$state-good-bg};
+  --state-active: #{$state-active};
+  --state-active-bg: #{$state-active-bg};
+  --state-warn: #{$state-warn};
+  --state-warn-bg: #{$state-warn-bg};
+  --state-bad: #{$state-bad};
+  --state-bad-bg: #{$state-bad-bg};
+  --state-muted: #{$state-muted};
+  --state-muted-bg: #{$state-muted-bg};
+  --state-done: #{$state-done};
+  --state-done-bg: #{$state-done-bg};
+
+  // Shadows — layered (ambient + key) for depth that reads as "expensive"
+  // rather than flat drop shadows.
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.14), 0 1px 1px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.20), 0 2px 4px rgba(0, 0, 0, 0.10);
+  --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.32), 0 8px 18px rgba(0, 0, 0, 0.16);
+  --shadow-glow: 0 0 0 1px rgba(249, 115, 22, 0.24),
+    0 8px 24px rgba(249, 115, 22, 0.18);
+  // Subtle top-inner highlight for elevated cards/dialogs — mimics the light
+  // catch on a real material edge. Transparent in light theme (set per-theme).
+  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  --blur: 18px;
+}
+
+// Dark theme (default) ------------------------------------------------------
+@mixin theme-dark {
+  @include _emit-vars(
+    $bg: #0a0d12,
+    $bg-2: #0b0f17,
+    $surface: rgba(20, 27, 41, 0.78),
+    $surface-2: rgba(26, 34, 50, 0.86),
+    $surface-3: rgba(33, 43, 62, 0.92),
+    $elevated: #121826,
+    $border: rgba(148, 163, 184, 0.16),
+    $border-strong: rgba(148, 163, 184, 0.30),
+    $text: #e6eaf2,
+    $text-strong: #f8fafc,
+    $text-muted: #94a3b8,
+    $text-faint: #64748b,
+    $overlay: rgba(2, 6, 23, 0.72),
+    $skeleton: rgba(148, 163, 184, 0.10),
+    $focus-ring: rgba(249, 115, 22, 0.55),
+    $scrim: rgba(2, 6, 23, 0.6)
+  );
+}
+
+// Light theme ---------------------------------------------------------------
+@mixin theme-light {
+  @include _emit-vars(
+    $bg: #f4f6fb,
+    $bg-2: #eef1f8,
+    $surface: #ffffff,
+    $surface-2: #f8fafc,
+    $surface-3: #f1f5f9,
+    $elevated: #ffffff,
+    $border: rgba(15, 23, 42, 0.10),
+    $border-strong: rgba(15, 23, 42, 0.18),
+    $text: #1e293b,
+    $text-strong: #0f172a,
+    $text-muted: #64748b,
+    $text-faint: #94a3b8,
+    $overlay: rgba(15, 23, 42, 0.42),
+    $skeleton: rgba(15, 23, 42, 0.06),
+    $focus-ring: rgba(249, 115, 22, 0.45),
+    $scrim: rgba(15, 23, 42, 0.30)
+  );
+  --surface: #ffffff;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 1px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.10), 0 2px 4px rgba(15, 23, 42, 0.05);
+  --shadow-lg: 0 24px 56px rgba(15, 23, 42, 0.16), 0 8px 18px rgba(15, 23, 42, 0.08);
+  --shadow-glow: 0 0 0 1px rgba(249, 115, 22, 0.18),
+    0 8px 24px rgba(249, 115, 22, 0.10);
+  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+// ---------------------------------------------------------------------------
+// Reusable mixins.
+// ---------------------------------------------------------------------------
+
+@mixin surface-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: $radius-lg;
+  box-shadow: var(--shadow-sm), var(--inner-highlight);
+}
+
+@mixin glass-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: $radius-lg;
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  box-shadow: var(--shadow-md), var(--inner-highlight);
+}
+
+// Refined, tighter focus ring — 2px instead of 3px, with a crisp accent
+// border so focus reads as intentional rather than a heavy halo.
+@mixin focus-ring {
+  outline: none;
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--focus-ring);
+    border-color: var(--accent);
+  }
+}
+
+// Tactile press feedback for buttons/controls: a tiny downward nudge + softer
+// shadow so clicks feel responsive. Combine with the element's own hover style.
+@mixin pressable {
+  &:not(:disabled):active {
+    transform: translateY(1px);
+  }
+}
+
+@mixin hide-overflow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@mixin scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  &::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: $radius-pill;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: var(--text-faint);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+  }
+}
+
+@mixin pill {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-1;
+  padding: 2px $space-2;
+  border-radius: $radius-pill;
+  font-size: $fs-xs;
+  font-weight: $fw-medium;
+  line-height: 1.4;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
