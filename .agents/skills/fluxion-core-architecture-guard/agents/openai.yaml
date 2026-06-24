@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fluxion Core Architecture Guard"
+  short_description: "Protect Core boundaries and extensibility"
+  default_prompt: "Use $fluxion-core-architecture-guard to design this Fluxion Core change."

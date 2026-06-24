@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fluxion HTTP Engine Guard"
+  short_description: "Guide HTTP segmented download work"
+  default_prompt: "Use $fluxion-http-engine-guard to implement or review HTTP download behavior."
