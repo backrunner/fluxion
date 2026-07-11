@@ -6,6 +6,8 @@ pub struct SegmentPlan {
 }
 
 pub fn plan_segments(total: u64, max_connections: u16, min_split_size: u64) -> Vec<SegmentPlan> {
+    // Guard a zero split size (division below) — treat it as 1 byte.
+    let min_split_size = min_split_size.max(1);
     if total == 0 || max_connections <= 1 || total <= min_split_size {
         return vec![SegmentPlan {
             index: 0,
@@ -14,8 +16,10 @@ pub fn plan_segments(total: u64, max_connections: u16, min_split_size: u64) -> V
         }];
     }
 
-    let max_by_size = (total / min_split_size).max(1) as u16;
-    let count = max_connections.min(max_by_size).max(1) as u64;
+    // All math in u64: casting `total / min_split_size` to u16 truncated for
+    // very large files (>= 65536 splits wrapped around to tiny counts).
+    let max_by_size = (total / min_split_size).max(1);
+    let count = u64::from(max_connections).min(max_by_size).max(1);
     let base = total / count;
     let mut remainder = total % count;
     let mut start = 0;

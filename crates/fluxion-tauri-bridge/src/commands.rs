@@ -178,7 +178,9 @@ async fn resolve_task_output_path(state: &CoreState, task_id: &str) -> CommandRe
         AppError::invalid_config("task has no file name; cannot resolve output path")
     })?;
     let save_dir = detail.task.save_dir;
-    let file_path = save_dir.join(&file_name);
+    // Engines write through the same sanitizer, so resolve with it too —
+    // otherwise names containing `:` or `/` would point at a non-existent file.
+    let file_path = save_dir.join(fluxion_core::sanitize_file_name(&file_name));
 
     // Path-traversal guard: the canonical file path must remain inside the
     // canonical save_dir. If canonicalization fails (file missing), fall back

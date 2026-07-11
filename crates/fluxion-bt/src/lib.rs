@@ -2,12 +2,35 @@ use async_trait::async_trait;
 use fluxion_core::{
     AntiLeechConfig, BtFileState, BtSource, BtStateSnapshot, BtTaskConfig, DownloadEngine,
     DownloadKind, EngineContext, EngineExit, EngineStateProvider, FluxionError, FluxionErrorKind,
-    IpFilterConfig, MagnetPreview, MagnetPreviewFile, PreparedTask, Result, TaskControl, TaskKind,
-    TaskRateLimit, TaskState, apply_ip_filter,
+    IpFilterConfig, MagnetPreview, MagnetPreviewFile, PreparedTask, Result, SECRET_BT_MAGNET,
+    SECRET_BT_TRACKER_PREFIX, TaskControl, TaskKind, TaskRateLimit, TaskState, apply_ip_filter,
 };
-use librqbit::{AddTorrent, AddTorrentOptions, AddTorrentResponse, Api, Session, api::TorrentIdOrHash};
+use librqbit::{
+    AddTorrent, AddTorrentOptions, AddTorrentResponse, Api, Session, api::TorrentIdOrHash,
+};
 use serde::{Deserialize, Serialize};
-use std::{net::IpAddr, num::NonZeroU32, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet, net::IpAddr, num::NonZeroU32, path::PathBuf, sync::Arc, time::Duration,
+};
+use tokio::sync::OnceCell;
+
+/// Process-wide librqbit session. `Session` is designed as a per-process
+/// singleton (it binds a listen port and runs DHT); creating one per task
+/// causes port conflicts and leaks resources. Torrents are routed to their
+/// destination via the per-torrent `output_folder` option instead.
+static SHARED_SESSION: OnceCell<Arc<Session>> = OnceCell::const_new();
+
+async fn shared_session() -> Result<&'static Arc<Session>> {
+    SHARED_SESSION
+        .get_or_try_init(|| async {
+            // The session-level default output dir is never used: every
+            // torrent (and magnet preview) passes an explicit output_folder.
+            let base = std::env::temp_dir().join("fluxion-bt-session");
+            tokio::fs::create_dir_all(&base).await?;
+            Session::new(base).await.map_err(bt_error)
+        })
+        .await
+}
 
 pub struct BtEngine {
     adapter: RqbitAdapter,
@@ -34,12 +57,13 @@ impl DownloadEngine for BtEngine {
     }
 
     async fn prepare(&self, _ctx: EngineContext, task: PreparedTask) -> Result<PreparedTask> {
-        let TaskKind::Bt(config) = &task.task.kind else {
+        let TaskKind::Bt(stored_config) = &task.task.kind else {
             return Err(FluxionError::new(
                 FluxionErrorKind::InvalidConfig,
                 "not a BT task",
             ));
         };
+        let config = effective_bt_config(stored_config, &task.credentials)?;
         validate_bt_source(&config.source)?;
         Ok(task)
     }
@@ -50,22 +74,30 @@ impl DownloadEngine for BtEngine {
         task: PreparedTask,
         control: TaskControl,
     ) -> Result<EngineExit> {
-        let TaskKind::Bt(config) = &task.task.kind else {
+        let TaskKind::Bt(stored_config) = &task.task.kind else {
             return Err(FluxionError::new(
                 FluxionErrorKind::InvalidConfig,
                 "not a BT task",
             ));
         };
+        let config = effective_bt_config(stored_config, &task.credentials)?;
         let handle = self
             .adapter
-            .start(config, task.task.save_dir.clone(), task.task.limits.clone())
+            .start(
+                &config,
+                task.task.save_dir.clone(),
+                task.task.limits.clone(),
+            )
             .await?;
+        sync_session_rate_limits(&ctx, &handle).await?;
         // Register the live handle as a state provider so the UI can query
         // file/piece state while the task is running (or seeding).
         let provider: Arc<dyn EngineStateProvider> = Arc::new(handle.clone());
         ctx.register_state_provider(task.task.id, provider).await;
-        let mut last_progress = (0_u64, 0_u64);
         loop {
+            if let Err(error) = sync_session_rate_limits(&ctx, &handle).await {
+                tracing::warn!(task_id = ?task.task.id, ?error, "failed to refresh BitTorrent global limits");
+            }
             let stats = handle.stats();
             if let Some(error) = stats.error.clone() {
                 return Err(FluxionError::new(FluxionErrorKind::Network, error));
@@ -77,38 +109,25 @@ impl DownloadEngine for BtEngine {
                 Some(stats.total_bytes),
             )
             .await?;
-            let downloaded_delta = stats.progress_bytes.saturating_sub(last_progress.0);
-            let uploaded_delta = stats.uploaded_bytes.saturating_sub(last_progress.1);
-            if downloaded_delta > 0 {
-                control.acquire_download(downloaded_delta).await;
-            }
-            if uploaded_delta > 0 {
-                control.acquire_upload(uploaded_delta).await;
-            }
-            last_progress = (stats.progress_bytes, stats.uploaded_bytes);
             if stats.finished {
                 break;
             }
             if control.is_cancelled() {
-                let _ = handle.pause().await;
+                let _ = handle.remove().await;
                 return Err(FluxionError::cancelled());
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
         if config.enable_seeding {
             ctx.set_state(task.task.id, TaskState::Seeding).await?;
-            if self
-                .seed_until_cancelled_or_ratio(&ctx, &task, config, control, handle)
-                .await?
-            {
-                Ok(EngineExit::Completed { file_path: None })
-            } else {
-                Ok(EngineExit::Seeding)
-            }
-        } else {
-            let _ = handle.pause().await;
-            Ok(EngineExit::Completed { file_path: None })
+            // The download is already complete at this point, so both a
+            // reached share ratio and a user cancellation of the seeding
+            // phase end the task as Completed rather than as cancelled.
+            self.seed_until_cancelled_or_ratio(&ctx, &task, &config, control, &handle)
+                .await?;
         }
+        let _ = handle.remove().await;
+        Ok(EngineExit::Completed { file_path: None })
     }
 
     async fn resolve_magnet_preview(&self, magnet: &str) -> Result<MagnetPreview> {
@@ -117,15 +136,22 @@ impl DownloadEngine for BtEngine {
 }
 
 impl BtEngine {
+    /// Seed until the configured share ratio is reached or the user cancels.
+    /// Both outcomes return `Ok(())`: the download itself is already complete,
+    /// so stopping the seeding phase must not be treated as a cancellation of
+    /// the task.
     async fn seed_until_cancelled_or_ratio(
         &self,
         ctx: &EngineContext,
         task: &PreparedTask,
         config: &BtTaskConfig,
         control: TaskControl,
-        handle: RqbitDownload,
-    ) -> Result<bool> {
+        handle: &RqbitDownload,
+    ) -> Result<()> {
         loop {
+            if let Err(error) = sync_session_rate_limits(ctx, handle).await {
+                tracing::warn!(task_id = ?task.task.id, ?error, "failed to refresh BitTorrent global limits while seeding");
+            }
             let stats = handle.stats();
             ctx.progress(
                 task.task.id,
@@ -138,16 +164,27 @@ impl BtEngine {
                 && stats.total_bytes > 0
                 && (stats.uploaded_bytes as f64 / stats.total_bytes as f64) >= limit
             {
-                let _ = handle.pause().await;
-                return Ok(true);
+                return Ok(());
             }
             if control.is_cancelled() {
-                let _ = handle.pause().await;
-                return Err(FluxionError::cancelled());
+                return Ok(());
             }
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
     }
+}
+
+async fn sync_session_rate_limits(ctx: &EngineContext, handle: &RqbitDownload) -> Result<()> {
+    let settings = ctx.storage.get_settings().await?;
+    handle
+        .session
+        .ratelimits
+        .set_download_bps(nonzero_u32(settings.download_limit));
+    handle
+        .session
+        .ratelimits
+        .set_upload_bps(nonzero_u32(settings.upload_limit));
+    Ok(())
 }
 
 fn validate_bt_source(source: &BtSource) -> Result<()> {
@@ -164,12 +201,40 @@ fn validate_bt_source(source: &BtSource) -> Result<()> {
     }
 }
 
+fn effective_bt_config(
+    stored: &BtTaskConfig,
+    credentials: &fluxion_core::TaskCredentials,
+) -> Result<BtTaskConfig> {
+    let mut config = stored.clone();
+    if let Some(magnet) = credentials.extra.get(SECRET_BT_MAGNET) {
+        config.source = BtSource::Magnet(magnet.clone());
+    }
+    let trackers = credentials
+        .extra
+        .iter()
+        .filter(|(key, _)| key.starts_with(SECRET_BT_TRACKER_PREFIX))
+        .map(|(_, value)| {
+            value.parse().map_err(|error| {
+                FluxionError::new(
+                    FluxionErrorKind::InvalidConfig,
+                    format!("stored BitTorrent tracker URL is invalid: {error}"),
+                )
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    if !trackers.is_empty() {
+        config.trackers = trackers;
+    }
+    Ok(config)
+}
+
 pub struct RqbitAdapter;
 
 #[derive(Clone)]
 pub struct RqbitDownload {
     session: Arc<Session>,
     handle: Arc<librqbit::ManagedTorrent>,
+    selected_files: Option<HashSet<usize>>,
 }
 
 impl RqbitDownload {
@@ -177,8 +242,14 @@ impl RqbitDownload {
         self.handle.stats()
     }
 
-    async fn pause(&self) -> Result<()> {
-        self.session.pause(&self.handle).await.map_err(bt_error)
+    /// Remove the torrent from the shared session, keeping downloaded files.
+    /// Used on task exit/cancel so finished or stopped tasks do not keep
+    /// occupying the process-wide session.
+    async fn remove(&self) -> Result<()> {
+        self.session
+            .delete(TorrentIdOrHash::Id(self.handle.id()), false)
+            .await
+            .map_err(bt_error)
     }
 }
 
@@ -201,7 +272,10 @@ impl EngineStateProvider for RqbitDownload {
                         name: info.relative_filename.to_string_lossy().to_string(),
                         size: info.len,
                         downloaded: stats.file_progress.get(idx).copied().unwrap_or(0),
-                        selected: true,
+                        selected: self
+                            .selected_files
+                            .as_ref()
+                            .is_none_or(|selected| selected.contains(&idx)),
                     })
                     .collect::<Vec<_>>()
             })
@@ -238,7 +312,7 @@ impl RqbitAdapter {
         limits: TaskRateLimit,
     ) -> Result<RqbitDownload> {
         tokio::fs::create_dir_all(&output_dir).await?;
-        let session = Session::new(output_dir.clone()).await.map_err(bt_error)?;
+        let session = shared_session().await?.clone();
         let add = match &config.source {
             BtSource::Magnet(value) => AddTorrent::from_url(value.clone()),
             BtSource::TorrentFile(path) => {
@@ -280,13 +354,28 @@ impl RqbitAdapter {
             .ok_or_else(|| {
                 FluxionError::new(FluxionErrorKind::Unknown, "torrent was not started")
             })?;
-        Ok(RqbitDownload { session, handle })
+        let selected_files = if config.selected_files.is_empty() {
+            None
+        } else {
+            Some(
+                config
+                    .selected_files
+                    .iter()
+                    .map(|value| *value as usize)
+                    .collect(),
+            )
+        };
+        Ok(RqbitDownload {
+            session,
+            handle,
+            selected_files,
+        })
     }
 
     /// Resolve a magnet link into torrent metadata without starting a download.
     /// Uses librqbit's `list_only` mode, which contacts peers/DHT to fetch the
     /// info dictionary but allocates no storage and downloads no pieces. The
-    /// session runs in a temporary directory that is cleaned up afterward.
+    /// shared process-wide session is reused; the torrent is never added to it.
     ///
     /// This is a network-bound probe: on a dead swarm it can take the full
     /// timeout and still fail. Callers must surface failures gracefully.
@@ -298,18 +387,16 @@ impl RqbitAdapter {
             ));
         }
 
-        // librqbit's Session requires a writable output directory even in
-        // list-only mode. Use a temp dir and remove it once we have the
-        // metadata.
+        // librqbit still wants an output folder even in list-only mode. Point
+        // it at a temp dir (nothing is written there) and reuse the shared
+        // process-wide session.
         let tmp = tempfile::tempdir().map_err(|e| {
             FluxionError::new(
                 FluxionErrorKind::Unknown,
                 format!("could not create temp dir for magnet resolve: {e}"),
             )
         })?;
-        let session = Session::new(tmp.path().to_path_buf())
-            .await
-            .map_err(bt_error)?;
+        let session = shared_session().await?.clone();
 
         let add = AddTorrent::from_url(magnet.to_string());
         let options = AddTorrentOptions {
@@ -341,7 +428,7 @@ impl RqbitAdapter {
                 return Err(FluxionError::new(
                     FluxionErrorKind::Unknown,
                     "magnet resolve did not return a file list",
-                ))
+                ));
             }
         };
 
@@ -352,11 +439,7 @@ impl RqbitAdapter {
             .map(|cow| cow.into_owned())
             // Fall back to the magnet's `dn` parameter if the info dict has no
             // name (rare, but possible for malformed torrents).
-            .or_else(|| {
-                librqbit::Magnet::parse(magnet)
-                    .ok()
-                    .and_then(|m| m.name)
-            });
+            .or_else(|| librqbit::Magnet::parse(magnet).ok().and_then(|m| m.name));
 
         let mut total_bytes = 0u64;
         let files = list
@@ -440,6 +523,33 @@ pub fn should_block_peer(
 mod tests {
     use super::*;
     use fluxion_core::IpRule;
+
+    #[test]
+    fn effective_config_restores_isolated_magnet_and_trackers() {
+        let stored = BtTaskConfig {
+            source: BtSource::Magnet("magnet:?xt=urn:btih:redacted".to_string()),
+            selected_files: Vec::new(),
+            trackers: Vec::new(),
+            max_connections: None,
+            share_ratio_limit: None,
+            enable_seeding: false,
+            anti_leech: AntiLeechConfig::default(),
+            ip_filter: IpFilterConfig::default(),
+        };
+        let mut credentials = fluxion_core::TaskCredentials::default();
+        credentials.extra.insert(
+            SECRET_BT_MAGNET.to_string(),
+            "magnet:?xt=urn:btih:abc".to_string(),
+        );
+        credentials.extra.insert(
+            format!("{SECRET_BT_TRACKER_PREFIX}000000"),
+            "https://tracker.example/announce".to_string(),
+        );
+
+        let effective = effective_bt_config(&stored, &credentials).unwrap();
+        assert!(matches!(effective.source, BtSource::Magnet(value) if value.ends_with("abc")));
+        assert_eq!(effective.trackers.len(), 1);
+    }
 
     #[test]
     fn deny_cidr_blocks_peer() {

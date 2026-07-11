@@ -94,9 +94,17 @@ impl EngineContext {
     }
 
     pub async fn fail(&self, task_id: TaskId, error: &FluxionError) -> Result<()> {
+        let message = error.to_string();
         self.storage
-            .update_error(task_id, Some(error.to_string()))
+            .update_error(task_id, Some(message.clone()))
             .await?;
+        // Emit the error details alongside the state change so UIs subscribed
+        // to the event stream get the message without an extra fetch.
+        self.events
+            .emit(CoreEvent::TaskError(crate::TaskErrorEvent {
+                task_id,
+                message,
+            }));
         self.set_state(task_id, TaskState::Failed).await
     }
 }

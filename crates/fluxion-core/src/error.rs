@@ -57,8 +57,16 @@ impl FluxionError {
 
 impl From<std::io::Error> for FluxionError {
     fn from(value: std::io::Error) -> Self {
+        // ENOSPC / EDQUOT: the disk is full — retrying would just keep
+        // writing into a full volume, so classify it distinctly (the retry
+        // policy treats DiskFull as non-retryable).
+        const ENOSPC: i32 = 28;
+        const EDQUOT: i32 = 69; // macOS/BSD quota exceeded
         let kind = match value.kind() {
             std::io::ErrorKind::PermissionDenied => FluxionErrorKind::PermissionDenied,
+            _ if matches!(value.raw_os_error(), Some(ENOSPC) | Some(EDQUOT)) => {
+                FluxionErrorKind::DiskFull
+            }
             _ => FluxionErrorKind::Unknown,
         };
         Self::new(kind, value.to_string())

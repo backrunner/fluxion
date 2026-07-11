@@ -35,3 +35,42 @@ pub trait TaskStore: Send + Sync {
     async fn list_http_segments(&self, task_id: TaskId) -> Result<Vec<HttpSegment>>;
     async fn update_http_segment(&self, task_id: TaskId, segment: HttpSegment) -> Result<()>;
 }
+
+/// Storage for sensitive credential payloads (design §7.3). Implementations
+/// keep the secret material out of the regular database — the store is keyed
+/// by an opaque reference (e.g. the task id) and the database persists only
+/// that reference. macOS uses the Keychain (`fluxion-platform`); tests use an
+/// in-memory implementation.
+#[async_trait]
+pub trait SecretStore: Send + Sync {
+    async fn put(&self, secret_ref: &str, value: &str) -> Result<()>;
+    async fn get(&self, secret_ref: &str) -> Result<Option<String>>;
+    async fn delete(&self, secret_ref: &str) -> Result<()>;
+}
+
+/// In-memory secret store for tests and non-macOS fallbacks. Secrets live
+/// only for the process lifetime.
+#[derive(Default)]
+pub struct MemorySecretStore {
+    inner: tokio::sync::Mutex<std::collections::HashMap<String, String>>,
+}
+
+#[async_trait]
+impl SecretStore for MemorySecretStore {
+    async fn put(&self, secret_ref: &str, value: &str) -> Result<()> {
+        self.inner
+            .lock()
+            .await
+            .insert(secret_ref.to_string(), value.to_string());
+        Ok(())
+    }
+
+    async fn get(&self, secret_ref: &str) -> Result<Option<String>> {
+        Ok(self.inner.lock().await.get(secret_ref).cloned())
+    }
+
+    async fn delete(&self, secret_ref: &str) -> Result<()> {
+        self.inner.lock().await.remove(secret_ref);
+        Ok(())
+    }
+}

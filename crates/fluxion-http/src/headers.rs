@@ -16,7 +16,10 @@ pub fn build_headers(headers: &[HeaderPair]) -> Result<HeaderMap> {
                 format!("invalid value for header {}: {error}", header.name),
             )
         })?;
-        map.insert(name, value);
+        // `append`, not `insert`: repeated header names (multiple Cookie or
+        // custom headers) must all survive; `insert` silently kept only the
+        // last occurrence.
+        map.append(name, value);
     }
     Ok(map)
 }
