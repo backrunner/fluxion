@@ -2,7 +2,7 @@
 import type { TaskState } from './types';
 
 export function formatBytes(bytes?: number | null, opts: { decimals?: number } = {}): string {
-  if (bytes == null) return '—';
+  if (bytes == null) return '-';
   const decimals = opts.decimals ?? 1;
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let value = bytes;
@@ -17,12 +17,12 @@ export function formatBytes(bytes?: number | null, opts: { decimals?: number } =
 }
 
 export function formatSpeed(bytesPerSec?: number | null): string {
-  if (!bytesPerSec || bytesPerSec <= 0) return '—';
+  if (!bytesPerSec || bytesPerSec <= 0) return '-';
   return `${formatBytes(bytesPerSec)}/s`;
 }
 
 export function formatDuration(seconds: number | null): string {
-  if (seconds == null) return '—';
+  if (seconds == null) return '-';
   if (seconds <= 0) return '0s';
   const s = Math.round(seconds);
   if (s < 60) return `${s}s`;
@@ -72,6 +72,12 @@ export function stateColorVar(kind: StateKind): string {
 
 export function stateBgVar(kind: StateKind): string {
   return `var(--state-${kind}-bg)`;
+}
+
+// Whether a state represents live in-flight transfer — drives the active
+// progress-shimmer treatment on the row and detail hero.
+export function isActive(state: TaskState): boolean {
+  return state === 'Downloading' || state === 'Resolving' || state === 'Verifying' || state === 'Seeding';
 }
 
 // Which actions are valid for a given state.

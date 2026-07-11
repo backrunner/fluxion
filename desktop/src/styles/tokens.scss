@@ -3,40 +3,41 @@
 // Each component `@use`s this file:  @use '../styles/tokens' as *;
 
 // ---------------------------------------------------------------------------
-// Brand accent — orange kept from the original identity, expanded to a scale.
+// Brand accent: a mineral vermilion. It keeps Fluxion's warm identity without
+// the saturated "web CTA orange" treatment.
 // ---------------------------------------------------------------------------
 $accent-50:  #fff7ed;
 $accent-100: #ffedd5;
 $accent-200: #fed7aa;
 $accent-300: #fdba74;
-$accent-400: #fb923c;
-$accent-500: #f97316; // primary
-$accent-600: #ea580c;
-$accent-700: #c2410c;
+$accent-400: #e57855;
+$accent-500: #d65f3d; // primary
+$accent-600: #bd4b2c;
+$accent-700: #9f3e25;
 $accent-800: #9a3412;
 $accent-900: #7c2d12;
 
-// Secondary accent — cool teal/cyan for secondary/progressing states.
-$cool-300: #5eead4;
-$cool-400: #2dd4bf;
-$cool-500: #14b8a6;
-$cool-600: #0d9488;
+// A quiet mineral secondary used only for upload data, never as a CTA.
+$cool-300: #91a8a2;
+$cool-400: #6f8f87;
+$cool-500: #58786f;
+$cool-600: #456159;
 
 // ---------------------------------------------------------------------------
 // Semantic state palette (per TaskState).
 // ---------------------------------------------------------------------------
-$state-good:    #34d399; // Downloading / Seeding
-$state-good-bg: rgba(52, 211, 153, 0.14);
-$state-active:  #f97316; // Resolving / Verifying (in-flight, uses accent)
-$state-active-bg: rgba(249, 115, 22, 0.14);
-$state-warn:    #fbbf24; // Queued
-$state-warn-bg: rgba(251, 191, 36, 0.14);
-$state-bad:     #f87171; // Failed
-$state-bad-bg:  rgba(248, 113, 113, 0.14);
-$state-muted:   #94a3b8; // Paused / Stopped
-$state-muted-bg: rgba(148, 163, 184, 0.14);
-$state-done:    #38bdf8; // Completed
-$state-done-bg: rgba(56, 189, 248, 0.14);
+$state-good:    #2f9b6a; // Downloading / Seeding
+$state-good-bg: rgba(47, 155, 106, 0.12);
+$state-active:  #d65f3d; // Resolving / Verifying
+$state-active-bg: rgba(214, 95, 61, 0.12);
+$state-warn:    #ae7d2f; // Queued
+$state-warn-bg: rgba(174, 125, 47, 0.12);
+$state-bad:     #c95353; // Failed
+$state-bad-bg: rgba(201, 83, 83, 0.12);
+$state-muted:   #7d8792; // Paused / Stopped
+$state-muted-bg: rgba(125, 135, 146, 0.12);
+$state-done:    #477f98; // Completed
+$state-done-bg: rgba(71, 127, 152, 0.12);
 
 // ---------------------------------------------------------------------------
 // Spacing scale (px).
@@ -52,21 +53,22 @@ $space-10: 40px;
 $space-12: 48px;
 
 // ---------------------------------------------------------------------------
-// Radii. Slightly softer for a more refined, modern feel.
+// Compact desktop geometry. Controls stay crisp while content groups get a
+// slightly softer silhouette. Pills remain reserved for status and toggles.
 // ---------------------------------------------------------------------------
-$radius-xs: 6px;
-$radius-sm: 8px;
-$radius-md: 12px;
-$radius-lg: 16px;
-$radius-xl: 22px;
+$radius-xs: 4px;
+$radius-sm: 6px;
+$radius-md: 8px;
+$radius-lg: 10px;
+$radius-xl: 12px;
 $radius-pill: 999px;
 
 // ---------------------------------------------------------------------------
 // Typography.
 // ---------------------------------------------------------------------------
-$font-sans: 'Inter', 'IBM Plex Sans', 'SF Pro Text', -apple-system,
+$font-sans: 'Avenir Next', 'SF Pro Text', -apple-system,
   BlinkMacSystemFont, 'Segoe UI', sans-serif;
-$font-mono: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', ui-monospace,
+$font-mono: 'SF Mono', 'IBM Plex Mono', ui-monospace,
   Menlo, Consolas, monospace;
 
 $fs-xs: 0.75rem;   // 12
@@ -91,6 +93,7 @@ $lh-normal: 1.5;
 // ---------------------------------------------------------------------------
 $ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 $ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+$ease-glass: cubic-bezier(0.32, 0.72, 0, 1);
 $dur-fast: 120ms;
 $dur-base: 200ms;
 $dur-slow: 320ms;
@@ -127,10 +130,12 @@ $dur-slow: 320ms;
   --accent: #{$accent-500};
   --accent-hover: #{$accent-400};
   --accent-press: #{$accent-600};
-  --accent-soft: rgba(249, 115, 22, 0.16);
+  --accent-soft: rgba(214, 95, 61, 0.12);
+  --accent-soft-strong: rgba(214, 95, 61, 0.24);
   --accent-contrast: #ffffff;
 
   --cool: #{$cool-400};
+  --cool-soft: rgba(111, 143, 135, 0.14);
 
   --state-good: #{$state-good};
   --state-good-bg: #{$state-good-bg};
@@ -145,69 +150,132 @@ $dur-slow: 320ms;
   --state-done: #{$state-done};
   --state-done-bg: #{$state-done-bg};
 
-  // Shadows — layered (ambient + key) for depth that reads as "expensive"
-  // rather than flat drop shadows.
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.14), 0 1px 1px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.20), 0 2px 4px rgba(0, 0, 0, 0.10);
-  --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.32), 0 8px 18px rgba(0, 0, 0, 0.16);
-  --shadow-glow: 0 0 0 1px rgba(249, 115, 22, 0.24),
-    0 8px 24px rgba(249, 115, 22, 0.18);
-  // Subtle top-inner highlight for elevated cards/dialogs — mimics the light
-  // catch on a real material edge. Transparent in light theme (set per-theme).
-  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-sm: 0 1px 2px rgba(18, 22, 20, 0.07);
+  --shadow-md: 0 8px 24px rgba(18, 22, 20, 0.12);
+  --shadow-lg: 0 24px 64px rgba(18, 22, 20, 0.18);
+  --shadow-glow: none;
+  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+
+  --surface-gradient: linear-gradient(145deg, var(--surface-2), var(--surface));
+  --control-gradient: linear-gradient(180deg, var(--surface-3), var(--surface-2));
+  --accent-gradient: linear-gradient(135deg, #{$accent-400}, #{$accent-600});
+  --selected-gradient: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 13%, var(--surface-2)),
+    color-mix(in srgb, var(--accent) 4%, var(--surface))
+  );
+  --selected-shadow: 0 6px 18px rgba(102, 44, 27, 0.1);
+
+  // Web approximation of regular Liquid Glass for functional controls only.
+  // Content panels keep standard materials so hierarchy stays readable.
+  --glass-fill:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.08), transparent 38%, rgba(255, 255, 255, 0.025) 72%, transparent),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--elevated) 78%, transparent),
+      color-mix(in srgb, var(--surface-2) 64%, transparent)
+    );
+  --glass-fill-hover:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.12), transparent 40%, rgba(255, 255, 255, 0.04) 74%, transparent),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--elevated) 92%, transparent),
+      color-mix(in srgb, var(--surface-3) 74%, transparent)
+    );
+  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.11),
+    inset 1px 0 0 rgba(255, 255, 255, 0.035),
+    inset 0 -1px 0 rgba(10, 11, 11, 0.16);
+  --glass-control-shadow: 0 5px 14px rgba(18, 22, 20, 0.08);
+  --glass-control-shadow-hover: 0 8px 20px rgba(18, 22, 20, 0.13);
+  --accent-glass-fill: linear-gradient(
+    145deg,
+    color-mix(in srgb, #{$accent-400} 88%, white),
+    #{$accent-600}
+  );
 
   --blur: 18px;
 }
 
-// Dark theme (default) ------------------------------------------------------
+// Dark theme (default): near-black graphite with a single warm orange accent.
+// Semantic states stay legible, but live transfer color no longer introduces
+// a competing green family into the interface.
 @mixin theme-dark {
   @include _emit-vars(
-    $bg: #0a0d12,
-    $bg-2: #0b0f17,
-    $surface: rgba(20, 27, 41, 0.78),
-    $surface-2: rgba(26, 34, 50, 0.86),
-    $surface-3: rgba(33, 43, 62, 0.92),
-    $elevated: #121826,
-    $border: rgba(148, 163, 184, 0.16),
-    $border-strong: rgba(148, 163, 184, 0.30),
-    $text: #e6eaf2,
-    $text-strong: #f8fafc,
-    $text-muted: #94a3b8,
-    $text-faint: #64748b,
-    $overlay: rgba(2, 6, 23, 0.72),
-    $skeleton: rgba(148, 163, 184, 0.10),
-    $focus-ring: rgba(249, 115, 22, 0.55),
-    $scrim: rgba(2, 6, 23, 0.6)
+    $bg: #0c0d0d,
+    $bg-2: #0c0d0d,
+    $surface: #111212,
+    $surface-2: #151616,
+    $surface-3: #1e1f1f,
+    $elevated: #191a1a,
+    $border: rgba(245, 239, 233, 0.08),
+    $border-strong: rgba(245, 239, 233, 0.16),
+    $text: #d7d3cf,
+    $text-strong: #f3f0ec,
+    $text-muted: #99948e,
+    $text-faint: #69645f,
+    $overlay: rgba(5, 6, 6, 0.78),
+    $skeleton: rgba(245, 239, 233, 0.06),
+    $focus-ring: rgba(214, 95, 61, 0.5),
+    $scrim: rgba(5, 6, 6, 0.68)
   );
+  --sidebar: #0e0f0f;
+  --sidebar-active: #201c1a;
+  --sidebar-hover: #181716;
+  --cool: #a79b94;
+  --cool-soft: rgba(167, 155, 148, 0.12);
+  --state-good: #e57855;
+  --state-good-bg: rgba(229, 120, 85, 0.12);
+  --state-active: #e57855;
+  --state-active-bg: rgba(229, 120, 85, 0.12);
+  --state-warn: #c98b56;
+  --state-warn-bg: rgba(201, 139, 86, 0.12);
+  --state-muted: #827d77;
+  --state-muted-bg: rgba(130, 125, 119, 0.12);
+  --state-done: #aaa39c;
+  --state-done-bg: rgba(170, 163, 156, 0.12);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 28px 70px rgba(0, 0, 0, 0.44);
+  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --selected-shadow: 0 8px 22px rgba(0, 0, 0, 0.26);
+  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 1px 0 0 rgba(255, 255, 255, 0.035),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.32);
+  --glass-control-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  --glass-control-shadow-hover: 0 9px 24px rgba(0, 0, 0, 0.3);
 }
 
 // Light theme ---------------------------------------------------------------
 @mixin theme-light {
   @include _emit-vars(
-    $bg: #f4f6fb,
-    $bg-2: #eef1f8,
-    $surface: #ffffff,
-    $surface-2: #f8fafc,
-    $surface-3: #f1f5f9,
-    $elevated: #ffffff,
-    $border: rgba(15, 23, 42, 0.10),
-    $border-strong: rgba(15, 23, 42, 0.18),
-    $text: #1e293b,
-    $text-strong: #0f172a,
-    $text-muted: #64748b,
-    $text-faint: #94a3b8,
-    $overlay: rgba(15, 23, 42, 0.42),
-    $skeleton: rgba(15, 23, 42, 0.06),
-    $focus-ring: rgba(249, 115, 22, 0.45),
-    $scrim: rgba(15, 23, 42, 0.30)
+    $bg: #ecefed,
+    $bg-2: #ecefed,
+    $surface: #f9faf8,
+    $surface-2: #f2f4f2,
+    $surface-3: #e7eae7,
+    $elevated: #fcfcfa,
+    $border: rgba(30, 38, 33, 0.11),
+    $border-strong: rgba(30, 38, 33, 0.20),
+    $text: #343b36,
+    $text-strong: #202622,
+    $text-muted: #66716a,
+    $text-faint: #929b95,
+    $overlay: rgba(25, 31, 27, 0.40),
+    $skeleton: rgba(30, 38, 33, 0.06),
+    $focus-ring: rgba(214, 95, 61, 0.38),
+    $scrim: rgba(25, 31, 27, 0.28)
   );
-  --surface: #ffffff;
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 1px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.10), 0 2px 4px rgba(15, 23, 42, 0.05);
-  --shadow-lg: 0 24px 56px rgba(15, 23, 42, 0.16), 0 8px 18px rgba(15, 23, 42, 0.08);
-  --shadow-glow: 0 0 0 1px rgba(249, 115, 22, 0.18),
-    0 8px 24px rgba(249, 115, 22, 0.10);
-  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --sidebar: #e5e9e5;
+  --sidebar-active: #d8ddd9;
+  --sidebar-hover: #dde2de;
+  --shadow-sm: 0 1px 2px rgba(30, 38, 33, 0.06);
+  --shadow-md: 0 10px 28px rgba(30, 38, 33, 0.11);
+  --shadow-lg: 0 28px 68px rgba(30, 38, 33, 0.16);
+  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.46);
+  --selected-shadow: 0 8px 20px rgba(92, 62, 44, 0.1);
+  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 1px 0 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(39, 48, 42, 0.1);
 }
 
 // ---------------------------------------------------------------------------
@@ -248,6 +316,53 @@ $dur-slow: 320ms;
   }
 }
 
+@mixin glass-control {
+  border: 1px solid transparent;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(12px) saturate(145%);
+  backdrop-filter: blur(12px) saturate(145%);
+  box-shadow: var(--glass-rim), var(--glass-control-shadow);
+  transition: background $dur-base $ease-glass, box-shadow $dur-base $ease-glass,
+    color $dur-fast $ease-out, transform 160ms $ease-glass;
+
+  &:not(:disabled):hover {
+    background: var(--glass-fill-hover);
+    box-shadow: var(--glass-rim), var(--glass-control-shadow-hover);
+  }
+
+  &:not(:disabled):active {
+    transform: scale(0.98);
+    box-shadow: var(--glass-rim), var(--shadow-sm);
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    background: var(--surface-3);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+// Toolbar symbols have no bezel at rest. The glass lens appears only as
+// interaction feedback, matching the macOS toolbar hierarchy.
+@mixin glass-hover-control {
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+  transition: background $dur-base $ease-glass, box-shadow $dur-base $ease-glass,
+    color $dur-fast $ease-out, transform 160ms $ease-glass;
+
+  &:not(:disabled):hover {
+    background: var(--glass-fill-hover);
+    -webkit-backdrop-filter: blur(12px) saturate(145%);
+    backdrop-filter: blur(12px) saturate(145%);
+    box-shadow: var(--glass-rim), var(--glass-control-shadow);
+  }
+
+  &:not(:disabled):active {
+    transform: scale(0.94);
+  }
+}
+
 @mixin hide-overflow {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -281,11 +396,88 @@ $dur-slow: 320ms;
   display: inline-flex;
   align-items: center;
   gap: $space-1;
-  padding: 2px $space-2;
+  padding: 3px $space-2;
   border-radius: $radius-pill;
   font-size: $fs-xs;
   font-weight: $fw-medium;
   line-height: 1.4;
   border: 1px solid transparent;
   white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+// Active progress shimmer — a diagonal sheen drifting across the fill so
+// in-flight downloads read as "alive". Apply to a ::after on the bar fill.
+// Gates itself behind prefers-reduced-motion via the global override.
+@mixin bar-shimmer($from-opacity: 0.55) {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, $from-opacity) 50%,
+      transparent 100%
+    );
+    background-size: 40% 100%;
+    background-repeat: no-repeat;
+    animation: bar-sheen 1.8s $ease-in-out infinite;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+  }
+}
+
+// Primary command: a restrained mineral gradient with a crisp upper edge.
+@mixin primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: $space-2;
+  border-radius: $radius-lg;
+  border: 1px solid transparent;
+  background: var(--accent-glass-fill);
+  color: var(--accent-contrast);
+  font-weight: $fw-semibold;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(12px) saturate(145%);
+  backdrop-filter: blur(12px) saturate(145%);
+  box-shadow: 0 6px 16px rgba(111, 45, 27, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -1px 0 rgba(85, 29, 18, 0.28);
+  transition: filter $dur-fast $ease-out, box-shadow $dur-fast $ease-out,
+    transform $dur-fast $ease-out;
+  @include focus-ring;
+  &:not(:disabled):hover {
+    filter: brightness(1.06) saturate(1.04);
+    box-shadow: 0 9px 22px rgba(111, 45, 27, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.38),
+      inset 0 -1px 0 rgba(85, 29, 18, 0.24);
+  }
+  &:not(:disabled):active {
+    transform: scale(0.98);
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// Neutral/secondary button — surface-toned outline.
+@mixin ghost-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: $space-2;
+  border-radius: $radius-lg;
+  @include glass-control;
+  color: var(--text);
+  cursor: pointer;
+  @include focus-ring;
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }

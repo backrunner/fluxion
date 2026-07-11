@@ -25,8 +25,7 @@
   const dispatch = createEventDispatcher<{ change: string }>();
 
   function sync(next: string) {
-    if (next === value) return;
-    value = next;
+    if (next !== value) value = next;
     dispatch('change', next);
   }
 
@@ -78,9 +77,8 @@
     gap: $space-2;
     min-width: 0;
     width: auto;
-    border-radius: $radius-sm;
-    border: 1px solid var(--border);
-    background: var(--surface);
+    border-radius: $radius-lg;
+    @include glass-control;
     color: var(--text);
     font-size: $fs-xs;
     font-weight: $fw-medium;
@@ -91,21 +89,22 @@
       box-shadow $dur-fast $ease-out;
   }
   :global(.fx-select-trigger:hover:not([data-disabled])) {
-    border-color: var(--border-strong);
-    background: var(--surface-2);
+    border-color: transparent;
   }
   :global(.fx-select-trigger[data-disabled]) {
     opacity: 0.5;
     cursor: not-allowed;
   }
   :global(.fx-select-trigger[data-state='open']) {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--focus-ring);
+    border-color: transparent;
+    box-shadow: 0 0 0 2px var(--focus-ring), var(--glass-rim),
+      var(--glass-control-shadow);
   }
   :global(.fx-select-trigger:focus-visible) {
     outline: none;
-    box-shadow: 0 0 0 3px var(--focus-ring);
-    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--focus-ring), var(--glass-rim),
+      var(--glass-control-shadow);
+    border-color: transparent;
   }
   :global(.fx-select-trigger.sm) {
     height: 28px;

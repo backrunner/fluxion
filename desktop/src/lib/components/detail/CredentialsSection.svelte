@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Info, Eye, EyeOff, Hash } from '@lucide/svelte';
   import type { TaskDetail } from '../../types';
+  import { t } from '../../i18n';
 
   export let detail: TaskDetail;
 
@@ -26,9 +27,9 @@
   <section class="creds">
     <div class="creds-head">
       <Info size={13} />
-      <span>Credentials</span>
+      <span>{$t('credentials.title')}</span>
       <button class="reveal" on:click={() => (revealCreds = !revealCreds)}>
-        {#if revealCreds}<EyeOff size={13} /> Hide{:else}<Eye size={13} /> Reveal{/if}
+        {#if revealCreds}<EyeOff size={13} /> {$t('common.hide')}{:else}<Eye size={13} /> {$t('common.reveal')}{/if}
       </button>
     </div>
     <dl class="grid">
@@ -36,13 +37,13 @@
         <div class="dl-row"><dt>{entry.name}</dt><dd class="mono">{revealCreds ? entry.value : maskValue(entry.value)}</dd></div>
       {/each}
       {#if detail.credentials.username}
-        <div class="dl-row"><dt>Username</dt><dd class="mono">{revealCreds ? detail.credentials.username : maskValue(detail.credentials.username)}</dd></div>
+        <div class="dl-row"><dt>{$t('credentials.username')}</dt><dd class="mono">{revealCreds ? detail.credentials.username : maskValue(detail.credentials.username)}</dd></div>
       {/if}
       {#if detail.credentials.password}
-        <div class="dl-row"><dt>Password</dt><dd class="mono">{revealCreds ? detail.credentials.password : '••••••'}</dd></div>
+        <div class="dl-row"><dt>{$t('credentials.password')}</dt><dd class="mono">{revealCreds ? detail.credentials.password : '••••••'}</dd></div>
       {/if}
       {#if detail.credentials.private_key_passphrase}
-        <div class="dl-row"><dt>Key passphrase</dt><dd class="mono">••••••</dd></div>
+        <div class="dl-row"><dt>{$t('credentials.keyPassphrase')}</dt><dd class="mono">••••••</dd></div>
       {/if}
     </dl>
   </section>
@@ -50,7 +51,7 @@
 
 {#if safeEntries.length > 0}
   <section class="creds">
-    <div class="creds-head"><Hash size={13} /><span>Request headers</span></div>
+    <div class="creds-head"><Hash size={13} /><span>{$t('credentials.requestHeaders')}</span></div>
     <dl class="grid">
       {#each safeEntries as entry}
         <div class="dl-row"><dt>{entry.name}</dt><dd class="mono">{entry.value}</dd></div>

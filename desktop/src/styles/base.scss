@@ -28,14 +28,12 @@ body {
   line-height: $lh-normal;
   color: var(--text);
   background: var(--bg);
-  background-image:
-    radial-gradient(1200px 600px at 100% -10%, rgba(249, 115, 22, 0.06), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgba(45, 212, 191, 0.05), transparent 60%),
-    linear-gradient(180deg, var(--bg-gradient), var(--bg));
-  background-attachment: fixed;
+  background-image: linear-gradient(145deg, var(--bg-gradient), var(--bg) 58%);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: 'cv11', 'ss01';
+  font-feature-settings: 'ss01';
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 #app {
@@ -75,6 +73,8 @@ input,
 textarea,
 select {
   font-family: inherit;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 // Unified form control styling. Applied via the `.fx-input` / `.fx-textarea`
@@ -86,9 +86,10 @@ select {
   box-sizing: border-box;
   border-radius: $radius-md;
   border: 1px solid var(--border);
-  background: var(--surface-3);
+  background: var(--control-gradient);
+  box-shadow: var(--inner-highlight);
   color: var(--text);
-  padding: 9px $space-3;
+  padding: 10px $space-3;
   font-size: $fs-sm;
   line-height: $lh-normal;
   transition: border-color $dur-fast $ease-out, background $dur-fast $ease-out,
@@ -104,7 +105,7 @@ select {
     outline: none;
     border-color: var(--accent);
     background: var(--surface);
-    box-shadow: 0 0 0 3px var(--focus-ring);
+    box-shadow: 0 0 0 2px var(--focus-ring), var(--inner-highlight);
   }
   &:disabled {
     opacity: 0.5;
@@ -120,7 +121,7 @@ select {
 }
 
 ::selection {
-  background: rgba(249, 115, 22, 0.28);
+  background: rgba(214, 95, 61, 0.24);
   color: var(--text-strong);
 }
 
@@ -149,7 +150,17 @@ body,
   border: 3px solid transparent;
 }
 
-// Reduced motion respect
+// Active-progress shimmer keyframe (referenced by the `bar-shimmer` mixin).
+@keyframes bar-sheen {
+  0% {
+    background-position: -40% 0;
+  }
+  100% {
+    background-position: 140% 0;
+  }
+}
+
+// Reduced motion respect — kill all the lively stuff for users who ask.
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

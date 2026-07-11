@@ -3,6 +3,7 @@
   import type { TaskDetail, TaskRateLimit, TaskState } from '../../types';
   import { canStart, canPause, canStop } from '../../format';
   import { updateTaskLimits } from '../../api';
+  import { t } from '../../i18n';
 
   export let detail: TaskDetail;
   export let busy = false;
@@ -26,6 +27,11 @@
   let limitUpload = '';
   let limitsBusy = false;
   let limitsHint = '';
+  $: limitsValid = [limitDownload, limitUpload].every((value) => {
+    if (!value.trim()) return true;
+    const number = Number(value);
+    return Number.isSafeInteger(number) && number > 0;
+  });
 
   function openLimits() {
     limitDownload = detail.task.limits.download_bytes_per_second?.toString() ?? '';
@@ -47,7 +53,7 @@
     };
     try {
       await updateTaskLimits(detail.task.id, limits);
-      limitsHint = 'Saved — restart the task for new limits to take effect.';
+      limitsHint = $t('detail.limitsSaved');
       onLimitsSaved();
       setTimeout(() => { limitsHint = ''; limitsOpen = false; }, 900);
     } catch (cause) {
@@ -58,55 +64,63 @@
   }
 </script>
 
-<div class="actions" class:compact role="toolbar" aria-label="Task actions">
+<div
+  class="actions"
+  class:compact
+  role="toolbar"
+  aria-label={$t('detail.actions')}
+  data-tauri-drag-region={compact ? 'true' : undefined}
+>
   {#if state === 'Failed'}
-    <button class="primary" disabled={!retryEnabled} on:click={onRetry} title="Retry">
-      <RotateCw size={14} /> {#if !compact}<span>Retry</span>{/if}
+    <button class="primary" disabled={!retryEnabled} on:click={onRetry} title={$t('list.action.retry')}>
+      <RotateCw size={14} /> {#if !compact}<span>{$t('list.action.retry')}</span>{/if}
     </button>
   {:else}
-    <button disabled={!startEnabled} on:click={() => onAction('start')} title="Start">
-      <Play size={14} /> {#if !compact}<span>Start</span>{/if}
+    <button disabled={!startEnabled} on:click={() => onAction('start')} title={$t('list.action.start')}>
+      <Play size={14} /> {#if !compact}<span>{$t('list.action.start')}</span>{/if}
     </button>
   {/if}
-  <button disabled={!pauseEnabled} on:click={() => onAction('pause')} title="Pause">
-    <Pause size={14} /> {#if !compact}<span>Pause</span>{/if}
+  <button disabled={!pauseEnabled} on:click={() => onAction('pause')} title={$t('list.action.pause')}>
+    <Pause size={14} /> {#if !compact}<span>{$t('list.action.pause')}</span>{/if}
   </button>
-  <button disabled={!stopEnabled} on:click={() => onAction('stop')} title="Stop">
-    <Square size={14} /> {#if !compact}<span>Stop</span>{/if}
+  <button disabled={!stopEnabled} on:click={() => onAction('stop')} title={$t('list.action.stop')}>
+    <Square size={14} /> {#if !compact}<span>{$t('list.action.stop')}</span>{/if}
   </button>
-  <button class="limits-btn" on:click={openLimits} disabled={busy} title="Rate limits">
-    <Gauge size={14} /> {#if !compact}<span>Limits</span>{/if}
+  <button class="limits-btn" on:click={openLimits} disabled={busy} title={$t('detail.rateLimits')}>
+    <Gauge size={14} /> {#if !compact}<span>{$t('detail.limits')}</span>{/if}
   </button>
-  <button class="danger" disabled={busy} on:click={() => onAction('delete')} title="Delete">
-    <Trash2 size={14} /> {#if !compact}<span>Delete</span>{/if}
+  <button class="danger" disabled={busy} on:click={() => onAction('delete')} title={$t('common.delete')}>
+    <Trash2 size={14} /> {#if !compact}<span>{$t('common.delete')}</span>{/if}
   </button>
-  <button class="reveal" disabled={!openEnabled} on:click={onReveal} title="Reveal in Finder">
-    <FolderSearch size={14} /> {#if !compact}<span>Reveal</span>{/if}
+  <button class="reveal" disabled={!openEnabled} on:click={onReveal} title={$t('detail.revealFinder')}>
+    <FolderSearch size={14} /> {#if !compact}<span>{$t('detail.reveal')}</span>{/if}
   </button>
-  <button class="reveal" disabled={!openEnabled} on:click={onOpen} title="Open file">
-    <ExternalLink size={14} /> {#if !compact}<span>Open</span>{/if}
+  <button class="reveal" disabled={!openEnabled} on:click={onOpen} title={$t('detail.openFile')}>
+    <ExternalLink size={14} /> {#if !compact}<span>{$t('detail.open')}</span>{/if}
   </button>
 </div>
 
+<svelte:window on:keydown={(e) => limitsOpen && e.key === 'Escape' && closeLimits()} />
+
 {#if limitsOpen}
-  <div class="overlay" on:click|self={closeLimits} on:keydown={(e) => e.key === 'Escape' && closeLimits()} role="presentation">
-    <div class="dialog" role="dialog" aria-modal="true" aria-label="Rate limits" tabindex="-1" on:click|stopPropagation on:keydown|stopPropagation>
+  <div class="overlay" on:click|self={closeLimits} role="presentation">
+    <div class="dialog" role="dialog" aria-modal="true" aria-label={$t('detail.rateLimits')} tabindex="-1" on:click|stopPropagation on:keydown|stopPropagation>
       <div class="dialog-head">
-        <div class="dialog-title"><Gauge size={15} /> Rate limits</div>
-        <button class="close" on:click={closeLimits} disabled={limitsBusy} aria-label="Close"><X size={14} /></button>
+        <div class="dialog-title"><Gauge size={15} /> {$t('detail.rateLimits')}</div>
+        <button class="close" on:click={closeLimits} disabled={limitsBusy} aria-label={$t('common.close')}><X size={14} /></button>
       </div>
       <label class="field">
-        <span class="lbl">Download limit <em>bytes/s</em></span>
-        <input bind:value={limitDownload} inputmode="numeric" placeholder="unlimited" disabled={limitsBusy} />
+        <span class="lbl">{$t('detail.downloadLimit')} <em>bytes/s</em></span>
+        <input bind:value={limitDownload} type="number" min="1" step="1" placeholder={$t('common.unlimited')} disabled={limitsBusy} />
       </label>
       <label class="field">
-        <span class="lbl">Upload limit <em>bytes/s</em></span>
-        <input bind:value={limitUpload} inputmode="numeric" placeholder="unlimited" disabled={limitsBusy} />
+        <span class="lbl">{$t('detail.uploadLimit')} <em>bytes/s</em></span>
+        <input bind:value={limitUpload} type="number" min="1" step="1" placeholder={$t('common.unlimited')} disabled={limitsBusy} />
       </label>
       {#if limitsHint}<p class="hint">{limitsHint}</p>{/if}
       <div class="dialog-actions">
-        <button on:click={closeLimits} disabled={limitsBusy}>Cancel</button>
-        <button class="primary" on:click={saveLimits} disabled={limitsBusy}>{limitsBusy ? 'Saving…' : 'Save'}</button>
+        <button on:click={closeLimits} disabled={limitsBusy}>{$t('common.cancel')}</button>
+        <button class="primary" on:click={saveLimits} disabled={limitsBusy || !limitsValid}>{limitsBusy ? $t('common.saving') : $t('common.save')}</button>
       </div>
     </div>
   </div>
@@ -121,12 +135,11 @@
 
   .actions button {
     display: inline-flex; align-items: center; gap: 6px; padding: 7px $space-3;
-    border-radius: $radius-md; border: 1px solid var(--border); background: var(--surface);
+    border-radius: $radius-lg; @include glass-control;
     color: var(--text); cursor: pointer; font-size: $fs-sm;
     transition: background $dur-fast $ease-out, border-color $dur-fast $ease-out,
       color $dur-fast $ease-out, opacity $dur-fast $ease-out;
     @include focus-ring;
-    &:not(:disabled):hover { background: var(--surface-3); border-color: var(--border-strong); }
     &:disabled { opacity: 0.4; cursor: not-allowed; }
   }
 
@@ -134,9 +147,9 @@
   .actions.compact button {
     display: inline-flex; align-items: center; justify-content: center;
     width: 28px; height: 28px; padding: 0;
-    border-radius: $radius-sm; border: 1px solid transparent; background: transparent;
+    border-radius: $radius-md; @include glass-hover-control;
     color: var(--text-muted);
-    &:not(:disabled):hover { background: var(--surface-3); color: var(--text-strong); border-color: var(--border); }
+    &:not(:disabled):hover { color: var(--text-strong); }
 
     :global(svg) {
       display: block;
@@ -154,11 +167,12 @@
     }
   }
   .actions.compact .reveal:not(:disabled) { color: var(--text-muted); &:not(:disabled):hover { color: var(--accent); } }
+  .actions.compact .reveal { margin-left: 0; }
 
   .primary {
-    background: linear-gradient(145deg, var(--accent-hover), var(--accent-press));
+    background: var(--accent-glass-fill);
     border-color: transparent; color: var(--accent-contrast); font-weight: $fw-semibold;
-    &:not(:disabled):hover { filter: brightness(1.06); box-shadow: var(--shadow-glow); }
+    &:not(:disabled):hover { background: var(--accent-glass-fill); filter: brightness(1.06); }
   }
 
   .limits-btn {
@@ -234,8 +248,8 @@
     &:disabled { opacity: 0.5; cursor: not-allowed; }
   }
   .dialog-actions .primary {
-    background: linear-gradient(145deg, var(--accent-hover), var(--accent-press));
+    background: var(--accent);
     border-color: transparent; color: var(--accent-contrast); font-weight: $fw-semibold;
-    &:not(:disabled):hover { filter: brightness(1.06); box-shadow: var(--shadow-glow); }
+    &:not(:disabled):hover { background: var(--accent-hover); }
   }
 </style>

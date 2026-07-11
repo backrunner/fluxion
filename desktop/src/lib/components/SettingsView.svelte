@@ -1,13 +1,21 @@
 <script lang="ts">
-  import { Save, Gauge, Network, Magnet, Palette, Sun, Moon } from '@lucide/svelte';
+  import { Save, Gauge, Network, Magnet, Palette, Sun, Moon, Languages, RefreshCw } from '@lucide/svelte';
   import type { SettingsSnapshot } from '../types';
   import { settingsStore, hydrateSettingsForm, settingsFormToSnapshot, type SettingsForm } from '../stores/settings';
   import { themeStore } from '../stores/theme';
   import { updateSettings } from '../api';
+  import Select from './common/Select.svelte';
+  import { languageOptions, locale, t, type Locale } from '../i18n';
+  import { windowDrag } from '../windowDrag';
+  import type { UpdateCheckState } from '../updater';
 
   export let busy: boolean;
   export let onError: (message: string) => void = () => {};
   export let onSaved: () => void = () => {};
+  export let updateCheckState: UpdateCheckState = 'idle';
+  export let updateVersion: string | null = null;
+  export let updateCheckError = '';
+  export let onCheckForUpdates: () => void | Promise<void> = () => {};
 
   let form: SettingsForm = hydrateSettingsForm({
     download_limit: null,
@@ -24,6 +32,11 @@
   }
 
   $: isDark = $themeStore === 'dark';
+  $: ratesValid = [form.downloadLimit, form.uploadLimit].every((value) => {
+    if (!value.trim()) return true;
+    const number = Number(value);
+    return Number.isSafeInteger(number) && number > 0;
+  });
 
   async function save() {
     if (busy || !$settingsStore) return;
@@ -35,31 +48,34 @@
     }
   }
 
-  function parseRate(value: string): number | null {
-    if (!value.trim()) return null;
-    const n = Number(value);
-    return Number.isFinite(n) && n > 0 ? n : null;
-  }
-  void parseRate;
 </script>
 
-<div class="settings">
+<div class="settings-view">
+  <header class="settings-toolbar" data-tauri-drag-region="true" use:windowDrag>
+    <h2 data-tauri-drag-region="true">{$t('settings.title')}</h2>
+    <button class="primary save-button" on:click={save} disabled={busy || !$settingsStore || !ratesValid}>
+      <Save size={14} /> {busy ? $t('common.saving') : $t('settings.save')}
+    </button>
+  </header>
+
+  <div class="settings-scroll">
+  <div class="settings">
   <section class="card">
     <header class="card-head">
       <span class="card-icon"><Gauge size={16} /></span>
       <div>
-        <h3>Transfer limits</h3>
-        <p>Global rate caps applied to all tasks. Leave blank for unlimited.</p>
+        <h3>{$t('settings.transfer.title')}</h3>
+        <p>{$t('settings.transfer.copy')}</p>
       </div>
     </header>
     <div class="grid-2">
       <label class="field">
-        <span class="lbl">Download limit <em>bytes/s</em></span>
-        <input class="fx-input" bind:value={form.downloadLimit} inputmode="numeric" placeholder="unlimited" />
+        <span class="lbl">{$t('settings.downloadLimit')} <em>bytes/s</em></span>
+        <input class="fx-input" bind:value={form.downloadLimit} type="number" min="1" step="1" placeholder={$t('common.unlimited')} />
       </label>
       <label class="field">
-        <span class="lbl">Upload limit <em>bytes/s</em></span>
-        <input class="fx-input" bind:value={form.uploadLimit} inputmode="numeric" placeholder="unlimited" />
+        <span class="lbl">{$t('settings.uploadLimit')} <em>bytes/s</em></span>
+        <input class="fx-input" bind:value={form.uploadLimit} type="number" min="1" step="1" placeholder={$t('common.unlimited')} />
       </label>
     </div>
   </section>
@@ -68,13 +84,13 @@
     <header class="card-head">
       <span class="card-icon"><Network size={16} /></span>
       <div>
-        <h3>Proxy</h3>
-        <p>Route transfers through the system proxy when available.</p>
+        <h3>{$t('settings.proxy.title')}</h3>
+        <p>{$t('settings.proxy.copy')}</p>
       </div>
     </header>
     <label class="toggle">
       <input type="checkbox" bind:checked={form.useSystemProxy} />
-      <span>Use system proxy</span>
+      <span>{$t('settings.proxy.useSystem')}</span>
     </label>
   </section>
 
@@ -82,22 +98,14 @@
     <header class="card-head">
       <span class="card-icon"><Magnet size={16} /></span>
       <div>
-        <h3>BitTorrent</h3>
-        <p>Trackers and peer IP policy. One entry per line.</p>
+        <h3>{$t('settings.bt.title')}</h3>
+        <p>{$t('settings.bt.copy')}</p>
       </div>
     </header>
-    <div class="grid-3">
+    <div class="grid-1">
       <label class="field">
-        <span class="lbl">Tracker list</span>
+        <span class="lbl">{$t('settings.bt.trackers')}</span>
         <textarea class="fx-textarea" bind:value={form.btTrackers} rows="5" placeholder="udp://tracker.opentrackr.org:1337/announce"></textarea>
-      </label>
-      <label class="field">
-        <span class="lbl">IP allow list</span>
-        <textarea class="fx-textarea" bind:value={form.btIpAllow} rows="5" placeholder="198.51.100.0/24"></textarea>
-      </label>
-      <label class="field">
-        <span class="lbl">IP deny list</span>
-        <textarea class="fx-textarea" bind:value={form.btIpDeny} rows="5" placeholder="203.0.113.0/24"></textarea>
       </label>
     </div>
   </section>
@@ -106,46 +114,126 @@
     <header class="card-head">
       <span class="card-icon"><Palette size={16} /></span>
       <div class="appearance-title">
-        <h3>Appearance</h3>
-        <p>Choose the color theme for the interface.</p>
+        <h3>{$t('settings.appearance.title')}</h3>
+        <p>{$t('settings.appearance.copy')}</p>
       </div>
-      <button
-        class="theme-switch"
-        class:dark={isDark}
-        on:click={() => themeStore.toggle()}
-        role="switch"
-        aria-checked={isDark}
-        aria-label="Toggle dark mode"
-        title={isDark ? 'Switch to light' : 'Switch to dark'}
-      >
-        <span class="switch-track">
-          <Sun size={13} class="switch-icon sun" />
-          <Moon size={13} class="switch-icon moon" />
-          <span class="switch-thumb"></span>
-        </span>
-      </button>
+      <div class="appearance-controls">
+        <label class="language-control">
+          <Languages size={14} />
+          <Select
+            items={languageOptions}
+            value={$locale}
+            on:change={(event) => locale.set(event.detail as Locale)}
+            ariaLabel={$t('settings.language')}
+            size="sm"
+            extraClass="language-select"
+          />
+        </label>
+        <button
+          class="theme-switch"
+          class:dark={isDark}
+          on:click={() => themeStore.toggle()}
+          role="switch"
+          aria-checked={isDark}
+          aria-label={$t('settings.toggleDark')}
+          title={isDark ? $t('settings.switchLight') : $t('settings.switchDark')}
+        >
+          <span class="switch-track">
+            <Sun size={13} class="switch-icon sun" />
+            <Moon size={13} class="switch-icon moon" />
+            <span class="switch-thumb"></span>
+          </span>
+        </button>
+      </div>
     </header>
   </section>
 
-  <div class="actions">
-    <button class="primary" on:click={save} disabled={busy || !$settingsStore}>
-      <Save size={15} /> {busy ? 'Saving…' : 'Save settings'}
-    </button>
+  <section class="card update-card">
+    <header class="card-head">
+      <span class="card-icon"><RefreshCw size={16} /></span>
+      <div class="update-title">
+        <h3>{$t('settings.update.title')}</h3>
+        <p aria-live="polite">
+          {#if updateCheckState === 'checking'}
+            {$t('settings.update.checking')}
+          {:else if updateCheckState === 'current'}
+            <span class="status-current">{$t('settings.update.current')}</span>
+          {:else if updateCheckState === 'available' && updateVersion}
+            <span class="status-available">{$t('settings.update.available', { version: updateVersion })}</span>
+          {:else if updateCheckState === 'error'}
+            <span class="status-error">{$t('settings.update.failed', { error: updateCheckError })}</span>
+          {:else}
+            {$t('settings.update.copy')}
+          {/if}
+        </p>
+      </div>
+      <button
+        class="check-update-button"
+        on:click={onCheckForUpdates}
+        disabled={busy || updateCheckState === 'checking'}
+      >
+        <span class:spinning={updateCheckState === 'checking'}><RefreshCw size={14} /></span>
+        {updateCheckState === 'checking' ? $t('settings.update.checkingButton') : $t('settings.update.check')}
+      </button>
+    </header>
+  </section>
+  </div>
   </div>
 </div>
 
 <style lang="scss">
   @use '../../styles/tokens' as *;
 
+  .settings-view {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    background: var(--surface-2);
+  }
+
+  .settings-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: $space-4;
+    height: 48px;
+    padding: 0 $space-4;
+    flex: none;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--surface), var(--surface-2));
+    box-shadow: var(--inner-highlight);
+
+    h2 {
+      min-width: 0;
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+  }
+
+  .settings-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    @include scrollbar;
+  }
+
   .settings {
     display: flex;
     flex-direction: column;
-    gap: $space-4;
-    max-width: 880px;
+    gap: $space-3;
+    max-width: 920px;
+    min-height: 100%;
+    padding: $space-4;
+    background: transparent;
   }
 
   .card {
-    @include surface-card;
+    background: var(--surface-gradient);
+    border: 1px solid var(--border);
+    border-radius: $radius-xl;
+    box-shadow: var(--shadow-sm), var(--inner-highlight);
     padding: $space-5;
     display: flex;
     flex-direction: column;
@@ -164,13 +252,16 @@
     border-radius: $radius-sm;
     display: grid;
     place-items: center;
-    background: var(--accent-soft);
-    color: var(--accent);
+    background: var(--control-gradient);
+    border: 1px solid var(--border);
+    box-shadow: var(--inner-highlight);
+    color: var(--text-muted);
     flex: none;
   }
 
   .card-head h3 {
     font-size: $fs-md;
+    letter-spacing: 0;
   }
 
   .card-head p {
@@ -185,9 +276,9 @@
     gap: $space-4;
   }
 
-  .grid-3 {
+  .grid-1 {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: $space-4;
   }
 
@@ -239,8 +330,89 @@
     align-items: center;
   }
 
+  .update-card .card-head {
+    align-items: center;
+  }
+
+  .update-title {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .update-title p {
+    overflow-wrap: anywhere;
+  }
+
+  .status-current { color: var(--state-good); }
+  .status-available { color: var(--accent); }
+  .status-error { color: var(--state-bad); }
+
+  .check-update-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 11px;
+    flex: none;
+    border: 1px solid var(--border-strong);
+    border-radius: $radius-sm;
+    background: var(--control-gradient);
+    box-shadow: var(--inner-highlight);
+    color: var(--text-strong);
+    font-size: $fs-xs;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    transition: border-color $dur-fast $ease-out, background $dur-fast $ease-out,
+      opacity $dur-fast $ease-out;
+    @include focus-ring;
+  }
+
+  .check-update-button:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: var(--surface-3);
+  }
+
+  .check-update-button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .check-update-button span {
+    display: inline-flex;
+  }
+
+  .check-update-button span.spinning {
+    animation: update-spin 900ms linear infinite;
+  }
+
+  @keyframes update-spin {
+    to { transform: rotate(360deg); }
+  }
+
   .appearance-title {
     flex: 1;
+    min-width: 0;
+  }
+
+  .appearance-controls,
+  .language-control {
+    display: flex;
+    align-items: center;
+  }
+
+  .appearance-controls {
+    gap: $space-3;
+    flex: none;
+  }
+
+  .language-control {
+    gap: 6px;
+    color: var(--text-faint);
+  }
+
+  :global(.language-select) {
+    min-width: 112px;
   }
 
   .theme-switch {
@@ -272,7 +444,7 @@
 
   .theme-switch.dark .switch-track {
     background: var(--accent-soft);
-    border-color: rgba(249, 115, 22, 0.4);
+    border-color: var(--accent-soft-strong);
   }
 
   :global(.switch-icon) {
@@ -292,7 +464,7 @@
     border-radius: 50%;
     background: var(--surface);
     box-shadow: var(--shadow-sm);
-    transition: transform $dur-base $ease-out;
+    transition: transform $dur-base $ease-out, background $dur-base $ease-out;
   }
 
   .theme-switch.dark .switch-thumb {
@@ -300,43 +472,33 @@
     background: var(--accent);
   }
 
-  .actions {
-    display: flex;
-    justify-content: flex-end;
+  .primary {
+    @include primary-button;
+    padding: 7px 12px;
+    font-size: $fs-sm;
+    white-space: nowrap;
   }
 
-  .primary {
-    display: inline-flex;
-    align-items: center;
-    gap: $space-2;
-    padding: $space-3 $space-5;
-    border-radius: $radius-md;
-    border: none;
-    background: linear-gradient(145deg, var(--accent-hover), var(--accent-press));
-    color: var(--accent-contrast);
-    font-weight: $fw-semibold;
-    cursor: pointer;
-    transition: filter $dur-fast $ease-out, box-shadow $dur-fast $ease-out,
-      transform $dur-fast $ease-out;
-    @include focus-ring;
-
-    &:not(:disabled):hover {
-      filter: brightness(1.06);
-      box-shadow: var(--shadow-glow);
-    }
-    &:not(:disabled):active {
-      transform: translateY(1px);
-    }
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+  .save-button {
+    flex: none;
+    min-height: 30px;
   }
 
   @media (max-width: 720px) {
     .grid-2,
-    .grid-3 {
+    .grid-1 {
       grid-template-columns: 1fr;
+    }
+
+    .appearance .card-head {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .appearance-controls {
+      width: 100%;
+      justify-content: space-between;
+      padding-left: 44px;
     }
   }
 </style>

@@ -15,12 +15,14 @@
   export let onCancel: () => void = () => {};
 
   function handleKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && !busy) onCancel();
+    if (open && e.key === 'Escape' && !busy) onCancel();
   }
 </script>
 
+<svelte:window on:keydown={handleKey} />
+
 {#if open}
-  <div class="overlay" on:click|self={onCancel} on:keydown={handleKey} role="presentation">
+  <div class="overlay" on:click|self={onCancel} role="presentation">
     <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="cd-title">
       <div class="icon"><AlertTriangle size={20} /></div>
       <h3 id="cd-title">{title}</h3>
@@ -145,13 +147,15 @@
   }
 
   .danger {
-    background: var(--state-bad);
-    border-color: var(--state-bad);
+    background: linear-gradient(145deg, color-mix(in srgb, var(--state-bad) 92%, white), var(--state-bad));
+    border-color: transparent;
     color: #fff;
+    font-weight: $fw-semibold;
+    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.24), 0 6px 18px rgba(248, 113, 113, 0.18);
 
     &:not(:disabled):hover {
-      filter: brightness(1.08);
-      background: var(--state-bad);
+      filter: brightness(1.07);
+      box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.32), 0 8px 24px rgba(248, 113, 113, 0.24);
     }
   }
 </style>
