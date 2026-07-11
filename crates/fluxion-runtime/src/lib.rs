@@ -10,7 +10,13 @@ use fluxion_storage::SqliteTaskStore;
 
 pub async fn build_core(data_dir: PathBuf) -> Result<Arc<FluxionCore>> {
     tokio::fs::create_dir_all(&data_dir).await?;
-    let store = Arc::new(SqliteTaskStore::connect(data_dir.join("fluxion.sqlite")).await?);
+    // Sensitive credentials go to the macOS Keychain; the database only
+    // stores an opaque reference (requirements §7 / design §7.3).
+    let secrets: Arc<dyn fluxion_core::SecretStore> =
+        Arc::new(fluxion_platform::KeychainSecretStore::new());
+    let store = Arc::new(
+        SqliteTaskStore::connect_with_secrets(data_dir.join("fluxion.sqlite"), secrets).await?,
+    );
     let engines: Vec<Arc<dyn DownloadEngine>> = vec![
         Arc::new(HttpEngine::new()?),
         Arc::new(FtpEngine::new()),

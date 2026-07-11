@@ -8,6 +8,8 @@ rust-version.workspace = true
 [dependencies]
 async-trait.workspace = true
 fluxion-core = { path = "../fluxion-core" }
+keyring = { version = "3", features = ["apple-native"] }
 tokio.workspace = true
 tracing.workspace = true
 
+url.workspace = true

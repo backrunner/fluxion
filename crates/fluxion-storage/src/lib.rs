@@ -1,23 +1,51 @@
-use std::{path::Path, str::FromStr};
+use std::{path::Path, str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
 use chrono::Utc;
 use fluxion_core::{
     CreateTaskInput, DownloadKind, DownloadTask, FluxionError, FluxionErrorKind, HttpResourceMeta,
-    HttpSegment, HttpSegmentState, Result, SettingsSnapshot, TaskCredentials, TaskDetail,
-    TaskFilter, TaskId, TaskKind, TaskState, TaskStore, TaskSummary, new_task_id,
+    HttpSegment, HttpSegmentState, Result, SecretStore, SettingsSnapshot, TaskCredentials,
+    TaskDetail, TaskFilter, TaskId, TaskKind, TaskState, TaskStore, TaskSummary, new_task_id,
 };
 use sqlx::{
     Row, SqlitePool,
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
 };
 
+/// Marker persisted in `tasks.credentials_json` when the actual credential
+/// payload lives in the secret store (macOS Keychain). The database never
+/// sees the sensitive material itself (requirements §7).
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SecretRefMarker {
+    __secret_ref: String,
+}
+
+const SETTINGS_TRACKERS_SECRET_REF: &str = "settings-global-bt-trackers";
+
 pub struct SqliteTaskStore {
     pool: SqlitePool,
+    secrets: Option<Arc<dyn SecretStore>>,
 }
 
 impl SqliteTaskStore {
     pub async fn connect(path: impl AsRef<Path>) -> Result<Self> {
+        Self::connect_inner(path, None).await
+    }
+
+    /// Connect with a secret store: credential payloads containing sensitive
+    /// material are written to `secrets` and the database only stores an
+    /// opaque reference.
+    pub async fn connect_with_secrets(
+        path: impl AsRef<Path>,
+        secrets: Arc<dyn SecretStore>,
+    ) -> Result<Self> {
+        Self::connect_inner(path, Some(secrets)).await
+    }
+
+    async fn connect_inner(
+        path: impl AsRef<Path>,
+        secrets: Option<Arc<dyn SecretStore>>,
+    ) -> Result<Self> {
         if let Some(parent) = path.as_ref().parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
@@ -33,9 +61,141 @@ impl SqliteTaskStore {
             .connect_with(options)
             .await
             .map_err(storage_error)?;
-        let store = Self { pool };
+        let store = Self { pool, secrets };
         store.migrate().await?;
+        if store.secrets.is_some() {
+            store.migrate_sensitive_data().await?;
+        }
         Ok(store)
+    }
+
+    /// Serialize credentials for persistence. With a secret store attached,
+    /// non-empty credentials go to the store and only a reference is
+    /// returned for the database column.
+    async fn store_credentials(
+        &self,
+        task_id: TaskId,
+        credentials: &TaskCredentials,
+    ) -> Result<String> {
+        let payload = serde_json::to_string(credentials).map_err(storage_error)?;
+        if let Some(secrets) = &self.secrets
+            && has_sensitive_material(credentials)
+        {
+            let secret_ref = task_id.to_string();
+            secrets.put(&secret_ref, &payload).await?;
+            return serde_json::to_string(&SecretRefMarker {
+                __secret_ref: secret_ref,
+            })
+            .map_err(storage_error);
+        }
+        Ok(payload)
+    }
+
+    /// Resolve the credentials column value back into `TaskCredentials`,
+    /// following a secret-store reference when present.
+    async fn load_credentials(&self, raw: &str) -> Result<TaskCredentials> {
+        if let Ok(marker) = serde_json::from_str::<SecretRefMarker>(raw) {
+            let Some(secrets) = &self.secrets else {
+                return Err(FluxionError::new(
+                    FluxionErrorKind::Storage,
+                    "task credentials require a secret store",
+                ));
+            };
+            return match secrets.get(&marker.__secret_ref).await? {
+                Some(payload) => serde_json::from_str(&payload).map_err(storage_error),
+                None => Err(FluxionError::new(
+                    FluxionErrorKind::Storage,
+                    "task credential reference is missing from the secret store",
+                )),
+            };
+        }
+        serde_json::from_str(raw).map_err(storage_error)
+    }
+
+    async fn migrate_sensitive_data(&self) -> Result<()> {
+        let rows = sqlx::query("SELECT id, task_json, credentials_json FROM tasks")
+            .fetch_all(&self.pool)
+            .await
+            .map_err(storage_error)?;
+        for row in rows {
+            let id =
+                TaskId::parse_str(row.get::<String, _>("id").as_str()).map_err(storage_error)?;
+            let mut task: DownloadTask =
+                serde_json::from_str(row.get::<String, _>("task_json").as_str())
+                    .map_err(storage_error)?;
+            let credentials = self
+                .load_credentials(row.get::<String, _>("credentials_json").as_str())
+                .await?;
+            let mut input = CreateTaskInput {
+                kind: task.kind.clone(),
+                save_dir: task.save_dir.clone(),
+                file_name: task.file_name.clone(),
+                limits: task.limits.clone(),
+                proxy: task.proxy.clone(),
+                credentials,
+            };
+            input.isolate_sensitive_headers();
+            task.kind = input.kind;
+            task.proxy = input.proxy;
+            let credentials_column = self.store_credentials(id, &input.credentials).await?;
+            sqlx::query("UPDATE tasks SET task_json = ?2, credentials_json = ?3 WHERE id = ?1")
+                .bind(id.to_string())
+                .bind(serde_json::to_string(&task).map_err(storage_error)?)
+                .bind(credentials_column)
+                .execute(&self.pool)
+                .await
+                .map_err(storage_error)?;
+            match &task.kind {
+                TaskKind::Http(config) => {
+                    sqlx::query("UPDATE http_tasks SET original_url = ?2 WHERE task_id = ?1")
+                        .bind(id.to_string())
+                        .bind(config.url.to_string())
+                        .execute(&self.pool)
+                        .await
+                        .map_err(storage_error)?;
+                }
+                TaskKind::Bt(config) => {
+                    sqlx::query("UPDATE bt_tasks SET source_json = ?2 WHERE task_id = ?1")
+                        .bind(id.to_string())
+                        .bind(serde_json::to_string(&config.source).map_err(storage_error)?)
+                        .execute(&self.pool)
+                        .await
+                        .map_err(storage_error)?;
+                    sqlx::query("DELETE FROM bt_trackers WHERE task_id = ?1")
+                        .bind(id.to_string())
+                        .execute(&self.pool)
+                        .await
+                        .map_err(storage_error)?;
+                }
+                TaskKind::Ftp(config) => {
+                    sqlx::query("UPDATE ftp_tasks SET url = ?2 WHERE task_id = ?1")
+                        .bind(id.to_string())
+                        .bind(config.url.to_string())
+                        .execute(&self.pool)
+                        .await
+                        .map_err(storage_error)?;
+                }
+                TaskKind::Sftp(config) => {
+                    sqlx::query("UPDATE sftp_tasks SET url = ?2 WHERE task_id = ?1")
+                        .bind(id.to_string())
+                        .bind(config.url.to_string())
+                        .execute(&self.pool)
+                        .await
+                        .map_err(storage_error)?;
+                }
+            }
+        }
+
+        if let Some(row) = sqlx::query("SELECT value_json FROM settings WHERE key = 'global'")
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(storage_error)?
+        {
+            let settings = serde_json::from_str(row.get::<String, _>("value_json").as_str())
+                .map_err(storage_error)?;
+            self.update_settings(settings).await?;
+        }
+        Ok(())
     }
 
     pub fn pool(&self) -> &SqlitePool {
@@ -75,7 +235,8 @@ impl TaskStore for SqliteTaskStore {
             completed_at: None,
         };
         let kind = task.kind.download_kind();
-        sqlx::query(
+        let credentials_column = self.store_credentials(id, &input.credentials).await?;
+        let insert_query = sqlx::query(
             r#"
             INSERT INTO tasks (
                 id, kind, state, save_dir, file_name, task_json, credentials_json,
@@ -89,16 +250,19 @@ impl TaskStore for SqliteTaskStore {
         .bind(task.save_dir.to_string_lossy().to_string())
         .bind(task.file_name.clone())
         .bind(serde_json::to_string(&task).map_err(storage_error)?)
-        .bind(serde_json::to_string(&input.credentials).map_err(storage_error)?)
+        .bind(credentials_column)
         .bind(task.total_bytes.map(|value| value as i64))
         .bind(task.downloaded_bytes as i64)
         .bind(task.uploaded_bytes as i64)
         .bind(now.to_rfc3339())
-        .bind(now.to_rfc3339())
-        .execute(&self.pool)
-        .await
-        .map_err(storage_error)?;
-        insert_protocol_rows(&self.pool, &task).await?;
+        .bind(now.to_rfc3339());
+        let mut tx = self.pool.begin().await.map_err(storage_error)?;
+        insert_query
+            .execute(&mut *tx)
+            .await
+            .map_err(storage_error)?;
+        insert_protocol_rows(&mut tx, &task).await?;
+        tx.commit().await.map_err(storage_error)?;
         Ok(TaskDetail {
             task,
             credentials: input.credentials,
@@ -116,9 +280,9 @@ impl TaskStore for SqliteTaskStore {
         };
         let task: DownloadTask = serde_json::from_str(row.get::<String, _>("task_json").as_str())
             .map_err(storage_error)?;
-        let credentials: TaskCredentials =
-            serde_json::from_str(row.get::<String, _>("credentials_json").as_str())
-                .map_err(storage_error)?;
+        let credentials = self
+            .load_credentials(row.get::<String, _>("credentials_json").as_str())
+            .await?;
         Ok(Some(TaskDetail { task, credentials }))
     }
 
@@ -190,6 +354,12 @@ impl TaskStore for SqliteTaskStore {
             .execute(&self.pool)
             .await
             .map_err(storage_error)?;
+        // Best-effort: drop the keychain entry alongside the row.
+        if let Some(secrets) = &self.secrets
+            && let Err(error) = secrets.delete(&task_id.to_string()).await
+        {
+            tracing::warn!(?task_id, ?error, "failed to delete task secret");
+        }
         Ok(())
     }
 
@@ -199,12 +369,15 @@ impl TaskStore for SqliteTaskStore {
         };
         let mut paths = Vec::new();
         if let Some(file_name) = detail.task.file_name.clone() {
-            paths.push(detail.task.save_dir.join(file_name.clone()));
+            // Resolve through the same sanitizer engines write with, so the
+            // deleted file is the one actually on disk.
+            let disk_name = fluxion_core::sanitize_file_name(&file_name);
+            paths.push(detail.task.save_dir.join(disk_name.clone()));
             paths.push(
                 detail
                     .task
                     .save_dir
-                    .join(format!("{file_name}.fluxionpart")),
+                    .join(format!("{disk_name}.fluxionpart")),
             );
         }
         let rows = sqlx::query("SELECT temp_path FROM http_tasks WHERE task_id = ?1")
@@ -236,10 +409,28 @@ impl TaskStore for SqliteTaskStore {
         else {
             return Ok(SettingsSnapshot::default());
         };
-        serde_json::from_str(row.get::<String, _>("value_json").as_str()).map_err(storage_error)
+        let mut settings: SettingsSnapshot =
+            serde_json::from_str(row.get::<String, _>("value_json").as_str())
+                .map_err(storage_error)?;
+        if let Some(secrets) = &self.secrets
+            && let Some(payload) = secrets.get(SETTINGS_TRACKERS_SECRET_REF).await?
+        {
+            settings.bt_trackers = serde_json::from_str(&payload).map_err(storage_error)?;
+        }
+        Ok(settings)
     }
 
-    async fn update_settings(&self, settings: SettingsSnapshot) -> Result<()> {
+    async fn update_settings(&self, mut settings: SettingsSnapshot) -> Result<()> {
+        if let Some(secrets) = &self.secrets {
+            if settings.bt_trackers.is_empty() {
+                secrets.delete(SETTINGS_TRACKERS_SECRET_REF).await?;
+            } else {
+                let payload =
+                    serde_json::to_string(&settings.bt_trackers).map_err(storage_error)?;
+                secrets.put(SETTINGS_TRACKERS_SECRET_REF, &payload).await?;
+            }
+            settings.bt_trackers.clear();
+        }
         sqlx::query(
             r#"
             INSERT INTO settings (key, value_json) VALUES ('global', ?1)
@@ -291,21 +482,25 @@ impl TaskStore for SqliteTaskStore {
     }
 
     async fn update_http_meta(&self, task_id: TaskId, meta: HttpResourceMeta) -> Result<()> {
+        // The insert branch only fires if the http_tasks row is missing (it is
+        // normally created by insert_task); in that fallback case final_url is
+        // the best approximation of original_url we have. On conflict we must
+        // NOT touch max_connections/original_url, which are set at task
+        // creation time and not carried by HttpResourceMeta.
         sqlx::query(
             r#"
             INSERT INTO http_tasks (
                 task_id, original_url, final_url, etag, last_modified,
-                content_length, supports_ranges, temp_path, max_connections
+                content_length, supports_ranges, temp_path
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
             ON CONFLICT(task_id) DO UPDATE SET
                 final_url = excluded.final_url,
                 etag = excluded.etag,
                 last_modified = excluded.last_modified,
                 content_length = excluded.content_length,
                 supports_ranges = excluded.supports_ranges,
-                temp_path = excluded.temp_path,
-                max_connections = excluded.max_connections
+                temp_path = excluded.temp_path
             "#,
         )
         .bind(task_id.to_string())
@@ -319,7 +514,6 @@ impl TaskStore for SqliteTaskStore {
             meta.temp_path
                 .map(|path| path.to_string_lossy().to_string()),
         )
-        .bind(None::<i64>)
         .execute(&self.pool)
         .await
         .map_err(storage_error)?;
@@ -400,16 +594,49 @@ impl SqliteTaskStore {
         task_id: TaskId,
         mutate: impl FnOnce(&mut DownloadTask),
     ) -> Result<()> {
-        let mut detail = self
-            .get_task(task_id)
-            .await?
-            .ok_or_else(|| FluxionError::new(FluxionErrorKind::Storage, "task not found"))?;
-        mutate(&mut detail.task);
-        write_task(&self.pool, &detail.task).await
+        // Read-modify-write must be atomic: concurrent mutations (e.g. a pause
+        // state change racing a progress update) would otherwise overwrite each
+        // other. BEGIN IMMEDIATE takes the write lock up front so the read is
+        // already serialized against other writers.
+        let mut conn = self.pool.acquire().await.map_err(storage_error)?;
+        sqlx::query("BEGIN IMMEDIATE")
+            .execute(&mut *conn)
+            .await
+            .map_err(storage_error)?;
+        let result = async {
+            let row = sqlx::query("SELECT task_json FROM tasks WHERE id = ?1")
+                .bind(task_id.to_string())
+                .fetch_optional(&mut *conn)
+                .await
+                .map_err(storage_error)?
+                .ok_or_else(|| FluxionError::new(FluxionErrorKind::Storage, "task not found"))?;
+            let mut task: DownloadTask =
+                serde_json::from_str(row.get::<String, _>("task_json").as_str())
+                    .map_err(storage_error)?;
+            mutate(&mut task);
+            write_task(&mut *conn, &task).await
+        }
+        .await;
+        match result {
+            Ok(()) => {
+                sqlx::query("COMMIT")
+                    .execute(&mut *conn)
+                    .await
+                    .map_err(storage_error)?;
+                Ok(())
+            }
+            Err(error) => {
+                let _ = sqlx::query("ROLLBACK").execute(&mut *conn).await;
+                Err(error)
+            }
+        }
     }
 }
 
-async fn write_task(pool: &SqlitePool, task: &DownloadTask) -> Result<()> {
+async fn write_task<'e, E>(executor: E, task: &DownloadTask) -> Result<()>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
     sqlx::query(
         r#"
         UPDATE tasks SET
@@ -435,20 +662,23 @@ async fn write_task(pool: &SqlitePool, task: &DownloadTask) -> Result<()> {
     .bind(task.error.clone())
     .bind(task.updated_at.to_rfc3339())
     .bind(task.completed_at.map(|value| value.to_rfc3339()))
-    .execute(pool)
+    .execute(executor)
     .await
     .map_err(storage_error)?;
     Ok(())
 }
 
-async fn insert_protocol_rows(pool: &SqlitePool, task: &DownloadTask) -> Result<()> {
+async fn insert_protocol_rows(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    task: &DownloadTask,
+) -> Result<()> {
     match &task.kind {
         TaskKind::Http(config) => {
             sqlx::query("INSERT INTO http_tasks (task_id, original_url, max_connections) VALUES (?1, ?2, ?3)")
                 .bind(task.id.to_string())
                 .bind(config.url.to_string())
                 .bind(config.max_connections.map(i64::from))
-                .execute(pool)
+                .execute(&mut **tx)
                 .await
                 .map_err(storage_error)?;
         }
@@ -459,14 +689,14 @@ async fn insert_protocol_rows(pool: &SqlitePool, task: &DownloadTask) -> Result<
                 .bind(config.max_connections.map(i64::from))
                 .bind(config.share_ratio_limit)
                 .bind(config.enable_seeding)
-                .execute(pool)
+                .execute(&mut **tx)
                 .await
                 .map_err(storage_error)?;
             for tracker in &config.trackers {
                 sqlx::query("INSERT INTO bt_trackers (task_id, url) VALUES (?1, ?2)")
                     .bind(task.id.to_string())
                     .bind(tracker.to_string())
-                    .execute(pool)
+                    .execute(&mut **tx)
                     .await
                     .map_err(storage_error)?;
             }
@@ -478,7 +708,7 @@ async fn insert_protocol_rows(pool: &SqlitePool, task: &DownloadTask) -> Result<
                 .bind(config.username.clone())
                 .bind(config.passive)
                 .bind(config.ftps)
-                .execute(pool)
+                .execute(&mut **tx)
                 .await
                 .map_err(storage_error)?;
         }
@@ -488,7 +718,7 @@ async fn insert_protocol_rows(pool: &SqlitePool, task: &DownloadTask) -> Result<
                 .bind(config.url.to_string())
                 .bind(config.username.clone())
                 .bind(config.private_key_path.as_ref().map(|path| path.to_string_lossy().to_string()))
-                .execute(pool)
+                .execute(&mut **tx)
                 .await
                 .map_err(storage_error)?;
         }
@@ -580,6 +810,16 @@ async fn insert_http_segment(
 
 fn storage_error(error: impl std::error::Error + Send + Sync + 'static) -> FluxionError {
     FluxionError::new(FluxionErrorKind::Storage, error.to_string())
+}
+
+/// Whether the credentials contain anything worth protecting. Headers stored
+/// on `TaskCredentials` are the sensitive ones by construction (Cookie,
+/// Authorization, tokens); a bare username is not secret on its own.
+fn has_sensitive_material(credentials: &TaskCredentials) -> bool {
+    !credentials.headers.is_empty()
+        || credentials.password.is_some()
+        || credentials.private_key_passphrase.is_some()
+        || !credentials.extra.is_empty()
 }
 
 const MIGRATIONS: &[&str] = &[

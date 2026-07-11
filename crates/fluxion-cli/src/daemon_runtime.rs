@@ -45,6 +45,10 @@ pub async fn run() -> Result<()> {
             }
         }
     }
+    // Pause active tasks so their progress is persisted before exiting.
+    if let Err(error) = core.pause_all().await {
+        tracing::warn!(%error, "failed to pause tasks during shutdown");
+    }
     cleanup_runtime_files(&pid_path, &socket).await;
     Ok(())
 }
@@ -93,7 +97,23 @@ async fn handle_client(
     let mut reader = BufReader::new(read);
     let mut line = String::new();
     while reader.read_line(&mut line).await? > 0 {
-        let request: IpcRequest = serde_json::from_str(&line)?;
+        let request: IpcRequest = match serde_json::from_str(&line) {
+            Ok(request) => request,
+            Err(error) => {
+                // Report the parse failure to the client instead of silently
+                // dropping the connection, then keep serving the stream.
+                let response = IpcResponse {
+                    id: 0,
+                    result: None,
+                    error: Some(format!("invalid request: {error}")),
+                };
+                write
+                    .write_all(format!("{}\n", serde_json::to_string(&response)?).as_bytes())
+                    .await?;
+                line.clear();
+                continue;
+            }
+        };
         if request.method == "events.subscribe" {
             stream_events(core.clone(), request.id, &mut write).await?;
             break;

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use fluxion_core::{
     DownloadEngine, DownloadKind, EngineContext, EngineExit, FluxionError, FluxionErrorKind,
-    PreparedTask, Result, SftpTaskConfig, TaskControl, TaskKind,
+    PreparedTask, Result, SECRET_SFTP_SOURCE_URL, SftpTaskConfig, TaskControl, TaskKind,
 };
 use russh::client;
 use russh::keys::{PrivateKeyWithHashAlg, load_secret_key};
@@ -35,16 +35,20 @@ impl DownloadEngine for SftpEngine {
     }
 
     async fn prepare(&self, ctx: EngineContext, mut task: PreparedTask) -> Result<PreparedTask> {
-        let TaskKind::Sftp(config) = &task.task.kind else {
+        let TaskKind::Sftp(stored_config) = &task.task.kind else {
             return Err(FluxionError::new(
                 FluxionErrorKind::InvalidConfig,
                 "not an SFTP task",
             ));
         };
-        if task.task.file_name.is_none() {
-            task.task.file_name = inferred_file_name(&config.url);
-            ctx.storage.update_task(task.task.clone()).await?;
-        }
+        let name = task
+            .task
+            .file_name
+            .clone()
+            .or_else(|| inferred_file_name(&stored_config.url))
+            .unwrap_or_else(|| "download".to_string());
+        task.task.file_name = Some(fluxion_core::sanitize_file_name(&name));
+        ctx.storage.update_task(task.task.clone()).await?;
         Ok(task)
     }
 
@@ -54,13 +58,22 @@ impl DownloadEngine for SftpEngine {
         task: PreparedTask,
         control: TaskControl,
     ) -> Result<EngineExit> {
-        let TaskKind::Sftp(config) = &task.task.kind else {
+        let TaskKind::Sftp(stored_config) = &task.task.kind else {
             return Err(FluxionError::new(
                 FluxionErrorKind::InvalidConfig,
                 "not an SFTP task",
             ));
         };
-        run_sftp_download(&ctx, &task, config, control).await
+        let mut config = stored_config.clone();
+        if let Some(url) = task.credentials.extra.get(SECRET_SFTP_SOURCE_URL) {
+            config.url = Url::parse(url).map_err(|error| {
+                FluxionError::new(
+                    FluxionErrorKind::InvalidConfig,
+                    format!("stored SFTP source URL is invalid: {error}"),
+                )
+            })?;
+        }
+        run_sftp_download(&ctx, &task, &config, control).await
     }
 }
 
@@ -88,13 +101,14 @@ async fn run_sftp_download(
         .ok_or_else(|| {
             FluxionError::new(FluxionErrorKind::InvalidConfig, "SFTP username is required")
         })?;
-    let mut session = client::connect(
-        Arc::new(client::Config::default()),
-        sftp_addr(&config.url)?,
-        SftpClient,
-    )
-    .await
-    .map_err(sftp_error)?;
+    let addr = sftp_addr(&config.url)?;
+    let handler = SftpClient {
+        host: addr.0.clone(),
+        port: addr.1,
+    };
+    let mut session = client::connect(Arc::new(client::Config::default()), addr, handler)
+        .await
+        .map_err(sftp_error)?;
     let authenticated = authenticate_sftp(&mut session, username, task, config).await?;
     if !authenticated {
         return Err(FluxionError::new(
@@ -215,25 +229,89 @@ fn expand_home_path(path: &std::path::Path) -> PathBuf {
             .map(PathBuf::from)
             .unwrap_or_else(|| path.to_path_buf());
     }
-    if let Some(rest) = value.strip_prefix("~/") {
-        if let Some(home) = std::env::var_os("HOME") {
-            return PathBuf::from(home).join(rest);
-        }
+    if let Some(rest) = value.strip_prefix("~/")
+        && let Some(home) = std::env::var_os("HOME")
+    {
+        return PathBuf::from(home).join(rest);
     }
     path.to_path_buf()
 }
 
-struct SftpClient;
+struct SftpClient {
+    host: String,
+    port: u16,
+}
 
 impl client::Handler for SftpClient {
     type Error = russh::Error;
 
     async fn check_server_key(
         &mut self,
-        _server_public_key: &russh::keys::ssh_key::PublicKey,
+        server_public_key: &russh::keys::ssh_key::PublicKey,
     ) -> std::result::Result<bool, Self::Error> {
-        Ok(true)
+        let fingerprint = server_public_key
+            .fingerprint(russh::keys::HashAlg::Sha256)
+            .to_string();
+        Ok(verify_host_key(&self.host, self.port, &fingerprint))
     }
+}
+
+/// Trust-on-first-use host key verification backed by a known_hosts file in
+/// the Fluxion data directory. The first connection records the server key
+/// fingerprint; later connections must present the same key.
+fn verify_host_key(host: &str, port: u16, fingerprint: &str) -> bool {
+    let path = known_hosts_path();
+    let entry_key = format!("{host}:{port}");
+    let contents = std::fs::read_to_string(&path).unwrap_or_default();
+    for line in contents.lines() {
+        let mut parts = line.split_whitespace();
+        let (Some(key), Some(stored)) = (parts.next(), parts.next()) else {
+            continue;
+        };
+        if key == entry_key {
+            if stored == fingerprint {
+                return true;
+            }
+            tracing::error!(
+                host = entry_key,
+                expected = stored,
+                actual = fingerprint,
+                "SFTP host key mismatch; refusing connection (possible MITM). \
+                 Remove the entry from {} to trust the new key.",
+                path.display()
+            );
+            return false;
+        }
+    }
+    // First connection to this host: record the fingerprint.
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let mut updated = contents;
+    if !updated.is_empty() && !updated.ends_with('\n') {
+        updated.push('\n');
+    }
+    updated.push_str(&format!("{entry_key} {fingerprint}\n"));
+    if let Err(error) = std::fs::write(&path, updated) {
+        tracing::warn!(
+            path = %path.display(),
+            %error,
+            "failed to persist SFTP known_hosts entry"
+        );
+    }
+    true
+}
+
+fn known_hosts_path() -> PathBuf {
+    std::env::var_os("FLUXION_DATA_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".fluxion")
+        })
+        .join("known_hosts")
 }
 
 fn part_path(path: &std::path::Path) -> PathBuf {
@@ -257,24 +335,30 @@ fn remote_path(url: &Url) -> Result<String> {
             "SFTP URL must point to a file path",
         ));
     }
-    Ok(path.to_string())
+    percent_decode(path)
+}
+
+fn percent_decode(input: &str) -> Result<String> {
+    percent_encoding::percent_decode_str(input)
+        .decode_utf8()
+        .map(|value| value.into_owned())
+        .map_err(|_| {
+            FluxionError::new(
+                FluxionErrorKind::InvalidConfig,
+                "SFTP URL path is not valid UTF-8 after percent-decoding",
+            )
+        })
 }
 
 fn inferred_file_name(url: &Url) -> Option<String> {
     url.path_segments()
         .and_then(|mut segments| segments.next_back())
         .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
+        .and_then(|value| percent_decode(value).ok())
 }
 
 fn sanitize_file_name(input: &str) -> String {
-    input
-        .chars()
-        .map(|ch| match ch {
-            '/' | '\\' | ':' | '\0' => '_',
-            _ => ch,
-        })
-        .collect()
+    fluxion_core::sanitize_file_name(input)
 }
 
 async fn existing_len(path: &std::path::Path) -> Result<u64> {
@@ -313,6 +397,13 @@ async fn throttled_progress(
 }
 
 fn sftp_error(error: russh::Error) -> FluxionError {
+    if matches!(error, russh::Error::UnknownKey) {
+        return FluxionError::new(
+            FluxionErrorKind::Unauthorized,
+            "SFTP server host key does not match the fingerprint recorded in known_hosts \
+             (possible man-in-the-middle attack)",
+        );
+    }
     FluxionError::new(FluxionErrorKind::Network, error.to_string())
 }
 

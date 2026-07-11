@@ -3,8 +3,9 @@ use std::path::PathBuf;
 use async_trait::async_trait;
 use fluxion_core::{
     DownloadEngine, DownloadKind, EngineContext, EngineExit, FluxionError, FluxionErrorKind,
-    FtpTaskConfig, PreparedTask, Result, TaskControl, TaskKind,
+    FtpTaskConfig, PreparedTask, Result, SECRET_FTP_SOURCE_URL, TaskControl, TaskKind,
 };
+use suppaftp::types::FileType;
 use suppaftp::{Mode, tokio::AsyncFtpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use url::Url;
@@ -32,16 +33,20 @@ impl DownloadEngine for FtpEngine {
     }
 
     async fn prepare(&self, ctx: EngineContext, mut task: PreparedTask) -> Result<PreparedTask> {
-        let TaskKind::Ftp(config) = &task.task.kind else {
+        let TaskKind::Ftp(stored_config) = &task.task.kind else {
             return Err(FluxionError::new(
                 FluxionErrorKind::InvalidConfig,
                 "not an FTP task",
             ));
         };
-        if task.task.file_name.is_none() {
-            task.task.file_name = inferred_file_name(&config.url);
-            ctx.storage.update_task(task.task.clone()).await?;
-        }
+        let name = task
+            .task
+            .file_name
+            .clone()
+            .or_else(|| inferred_file_name(&stored_config.url))
+            .unwrap_or_else(|| "download".to_string());
+        task.task.file_name = Some(fluxion_core::sanitize_file_name(&name));
+        ctx.storage.update_task(task.task.clone()).await?;
         Ok(task)
     }
 
@@ -51,13 +56,22 @@ impl DownloadEngine for FtpEngine {
         task: PreparedTask,
         control: TaskControl,
     ) -> Result<EngineExit> {
-        let TaskKind::Ftp(config) = &task.task.kind else {
+        let TaskKind::Ftp(stored_config) = &task.task.kind else {
             return Err(FluxionError::new(
                 FluxionErrorKind::InvalidConfig,
                 "not an FTP task",
             ));
         };
-        run_ftp_download(&ctx, &task, config, control).await
+        let mut config = stored_config.clone();
+        if let Some(url) = task.credentials.extra.get(SECRET_FTP_SOURCE_URL) {
+            config.url = Url::parse(url).map_err(|error| {
+                FluxionError::new(
+                    FluxionErrorKind::InvalidConfig,
+                    format!("stored FTP source URL is invalid: {error}"),
+                )
+            })?;
+        }
+        run_ftp_download(&ctx, &task, &config, control).await
     }
 }
 
@@ -97,6 +111,9 @@ async fn run_ftp_download(
         ftp.set_mode(Mode::Active);
     }
     ftp.login(username, password).await.map_err(ftp_error)?;
+    ftp.transfer_type(FileType::Binary)
+        .await
+        .map_err(ftp_error)?;
     let total = ftp.size(&remote_path).await.ok().map(|value| value as u64);
     let existing = existing_len(&part).await?;
     if let Some(total) = total
@@ -119,24 +136,41 @@ async fn run_ftp_download(
         .open(&part)
         .await?;
     let mut downloaded = existing;
-    let mut buffer = vec![0_u8; BUFFER_SIZE];
-    loop {
-        if control.is_cancelled() {
-            file.flush().await?;
-            drop(stream);
+    let transfer: Result<bool> = async {
+        let mut buffer = vec![0_u8; BUFFER_SIZE];
+        loop {
+            if control.is_cancelled() {
+                return Ok(false);
+            }
+            let read = stream.read(&mut buffer).await?;
+            if read == 0 {
+                return Ok(true);
+            }
+            control.acquire_download(read as u64).await;
+            file.write_all(&buffer[..read]).await?;
+            downloaded += read as u64;
+            throttled_progress(ctx, task.task.id, downloaded, total, false).await?;
+        }
+    }
+    .await;
+    file.flush().await?;
+    match transfer {
+        Ok(true) => {
+            let finalized = ftp.finalize_retr_stream(stream).await.map_err(ftp_error);
+            let _ = ftp.quit().await;
+            finalized?;
+        }
+        Ok(false) => {
+            let _ = ftp.abort(stream).await;
+            let _ = ftp.quit().await;
             return Err(FluxionError::cancelled());
         }
-        let read = stream.read(&mut buffer).await?;
-        if read == 0 {
-            break;
+        Err(error) => {
+            let _ = ftp.abort(stream).await;
+            let _ = ftp.quit().await;
+            return Err(error);
         }
-        control.acquire_download(read as u64).await;
-        file.write_all(&buffer[..read]).await?;
-        downloaded += read as u64;
-        throttled_progress(ctx, task.task.id, downloaded, total, false).await?;
     }
-    file.flush().await?;
-    ftp.finalize_retr_stream(stream).await.map_err(ftp_error)?;
     throttled_progress(ctx, task.task.id, downloaded, total, true).await?;
     validate_size(&part, total).await?;
     tokio::fs::rename(part, &output).await?;
@@ -167,24 +201,30 @@ fn remote_path(url: &Url) -> Result<String> {
             "FTP URL must point to a file path",
         ));
     }
-    Ok(path.to_string())
+    percent_decode(path)
+}
+
+fn percent_decode(input: &str) -> Result<String> {
+    percent_encoding::percent_decode_str(input)
+        .decode_utf8()
+        .map(|value| value.into_owned())
+        .map_err(|_| {
+            FluxionError::new(
+                FluxionErrorKind::InvalidConfig,
+                "FTP URL path is not valid UTF-8 after percent-decoding",
+            )
+        })
 }
 
 fn inferred_file_name(url: &Url) -> Option<String> {
     url.path_segments()
         .and_then(|mut segments| segments.next_back())
         .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
+        .and_then(|value| percent_decode(value).ok())
 }
 
 fn sanitize_file_name(input: &str) -> String {
-    input
-        .chars()
-        .map(|ch| match ch {
-            '/' | '\\' | ':' | '\0' => '_',
-            _ => ch,
-        })
-        .collect()
+    fluxion_core::sanitize_file_name(input)
 }
 
 async fn existing_len(path: &std::path::Path) -> Result<u64> {

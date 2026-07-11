@@ -198,8 +198,9 @@ struct FtpAddTask {
     username: Option<String>,
     #[arg(long)]
     password: Option<String>,
-    #[arg(long, default_value_t = true)]
-    passive: bool,
+    /// Use active FTP mode (passive mode is the default).
+    #[arg(long = "active")]
+    active: bool,
     #[arg(long)]
     ftps: bool,
 }
@@ -360,16 +361,20 @@ async fn handle_daemon(command: DaemonCommand, context: &CliContext) -> Result<(
                 println!("running");
                 return Ok(());
             }
+            // The socket check above is the source of truth: if IPC is
+            // unreachable the daemon is not serving, so any pid file is stale
+            // (possibly a reused pid). Clean up and start fresh.
             let pid_path = context.pid_path.clone();
             if let Some(pid) = read_pid(&pid_path).await?
                 && pid_is_alive(pid).await
             {
-                anyhow::bail!(
-                    "pid file {} points to running process {pid}, but IPC is unavailable",
+                eprintln!(
+                    "warning: pid file {} points to live process {pid} but IPC is unavailable; assuming stale (pid reuse) and starting a new daemon",
                     pid_path.display()
                 );
             }
             let _ = tokio::fs::remove_file(&pid_path).await;
+            let _ = tokio::fs::remove_file(&socket).await;
             let exe = std::env::current_exe()?;
             let daemon = exe.with_file_name("fluxiond");
             let mut command = if daemon.exists() {
@@ -403,12 +408,16 @@ async fn handle_daemon(command: DaemonCommand, context: &CliContext) -> Result<(
             match request::<String>(socket, "daemon.status", IpcParams::Empty).await {
                 Ok(status) => println!("{status}"),
                 Err(error) => {
+                    // Socket connectivity is authoritative; the pid is only
+                    // informational (it may have been reused by another process).
                     let pid_path = context.pid_path.clone();
                     match read_pid(&pid_path).await? {
                         Some(pid) if pid_is_alive(pid).await => {
-                            println!("pid {pid} active, IPC unavailable: {error}")
+                            println!(
+                                "not running (IPC unavailable: {error}; pid file has live pid {pid}, possibly reused)"
+                            )
                         }
-                        Some(pid) => println!("stale pid {pid}, not running"),
+                        Some(pid) => println!("not running (stale pid {pid})"),
                         None => println!("not running"),
                     }
                 }
@@ -713,6 +722,8 @@ async fn build_diagnostic_export(context: &CliContext) -> Result<DiagnosticExpor
     })
 }
 
+const MIN_SPLIT_SIZE_FLOOR: u64 = 64 * 1024;
+
 fn build_create_task(input: AddTaskCommand) -> Result<CreateTaskInput> {
     match input.protocol {
         AddProtocol::Http(input) => build_http_task(input),
@@ -741,6 +752,11 @@ fn build_create_task(input: AddTaskCommand) -> Result<CreateTaskInput> {
 
 fn build_http_task(input: HttpAddTask) -> Result<CreateTaskInput> {
     ensure_scheme(&input.url, &["http", "https"])?;
+    if let Some(min_split_size) = input.min_split_size
+        && min_split_size < MIN_SPLIT_SIZE_FLOOR
+    {
+        anyhow::bail!("--min-split-size must be at least {MIN_SPLIT_SIZE_FLOOR} bytes (64 KiB)");
+    }
     let headers = parse_headers(&input.headers)?;
     let credentials = TaskCredentials {
         headers: headers
@@ -785,7 +801,7 @@ fn build_ftp_task(input: FtpAddTask) -> Result<CreateTaskInput> {
             ftps: input.ftps || input.url.scheme() == "ftps",
             url: input.url,
             username: input.username,
-            passive: input.passive,
+            passive: !input.active,
         }),
         credentials,
     ))

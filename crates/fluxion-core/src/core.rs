@@ -1,13 +1,6 @@
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::{Mutex, watch};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -25,20 +18,23 @@ pub struct FluxionCore {
     active: Arc<Mutex<HashMap<TaskId, Arc<ActiveTask>>>>,
     limiters: Arc<Limiters>,
     state_providers: StateProviderRegistry,
+    speed_sampler_started: std::sync::atomic::AtomicBool,
 }
 
 struct ActiveTask {
     cancellation: CancellationToken,
-    finished: Notify,
-    is_finished: AtomicBool,
+    control: TaskControl,
+    // `watch` (not `Notify`) so a finish signal sent before a waiter
+    // subscribes is never lost — the value persists.
+    finished: watch::Sender<bool>,
 }
 
 impl ActiveTask {
-    fn new(cancellation: CancellationToken) -> Self {
+    fn new(cancellation: CancellationToken, control: TaskControl) -> Self {
         Self {
             cancellation,
-            finished: Notify::new(),
-            is_finished: AtomicBool::new(false),
+            control,
+            finished: watch::Sender::new(false),
         }
     }
 
@@ -47,14 +43,14 @@ impl ActiveTask {
     }
 
     fn mark_finished(&self) {
-        self.is_finished.store(true, Ordering::Release);
-        self.finished.notify_waiters();
+        let _ = self.finished.send(true);
     }
 
     async fn wait_finished(&self) {
-        while !self.is_finished.load(Ordering::Acquire) {
-            self.finished.notified().await;
-        }
+        let mut rx = self.finished.subscribe();
+        // Completes immediately if already finished; otherwise waits for the
+        // send. No check-then-wait gap.
+        let _ = rx.wait_for(|finished| *finished).await;
     }
 }
 
@@ -70,6 +66,7 @@ impl FluxionCore {
             active: Arc::new(Mutex::new(HashMap::new())),
             limiters: Arc::new(Limiters::default()),
             state_providers: StateProviderRegistry::new(),
+            speed_sampler_started: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -83,10 +80,122 @@ impl FluxionCore {
             .global_upload
             .update_limit(settings.upload_limit)
             .await;
+        self.recover_interrupted_tasks().await?;
+        self.spawn_speed_sampler();
         Ok(())
     }
 
-    pub async fn create_task(&self, input: CreateTaskInput) -> Result<TaskId> {
+    /// Emit `TaskSpeed` events by sampling progress deltas once per second
+    /// (design §3.4: speed aggregated at 1 s). Runs for the lifetime of the
+    /// event bus; guarded so repeated `initialize` calls spawn only one.
+    fn spawn_speed_sampler(&self) {
+        if self
+            .speed_sampler_started
+            .swap(true, std::sync::atomic::Ordering::SeqCst)
+        {
+            return;
+        }
+        let events = self.events.clone();
+        let mut rx = self.events.subscribe();
+        tokio::spawn(async move {
+            struct Track {
+                latest_down: u64,
+                latest_up: u64,
+                sampled_down: u64,
+                sampled_up: u64,
+                last_emitted_nonzero: bool,
+            }
+            let mut tracks: HashMap<TaskId, Track> = HashMap::new();
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(1));
+            tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            loop {
+                tokio::select! {
+                    event = rx.recv() => {
+                        match event {
+                            Ok(CoreEvent::TaskProgress(progress)) => {
+                                let entry = tracks.entry(progress.task_id).or_insert(Track {
+                                    latest_down: progress.downloaded_bytes,
+                                    latest_up: progress.uploaded_bytes,
+                                    sampled_down: progress.downloaded_bytes,
+                                    sampled_up: progress.uploaded_bytes,
+                                    last_emitted_nonzero: false,
+                                });
+                                entry.latest_down = progress.downloaded_bytes;
+                                entry.latest_up = progress.uploaded_bytes;
+                            }
+                            Ok(CoreEvent::TaskStateChanged { task_id, state }) => {
+                                let still_active = matches!(
+                                    state,
+                                    TaskState::Downloading
+                                        | TaskState::Resolving
+                                        | TaskState::Verifying
+                                        | TaskState::Seeding
+                                );
+                                if !still_active
+                                    && let Some(track) = tracks.remove(&task_id)
+                                    && track.last_emitted_nonzero
+                                {
+                                    events.emit(CoreEvent::TaskSpeed(crate::TaskSpeed {
+                                        task_id,
+                                        download_bytes_per_second: 0,
+                                        upload_bytes_per_second: 0,
+                                    }));
+                                }
+                            }
+                            Ok(_) => {}
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                        }
+                    }
+                    _ = tick.tick() => {
+                        for (task_id, track) in tracks.iter_mut() {
+                            let down = track.latest_down.saturating_sub(track.sampled_down);
+                            let up = track.latest_up.saturating_sub(track.sampled_up);
+                            track.sampled_down = track.latest_down;
+                            track.sampled_up = track.latest_up;
+                            // Skip repeating zero-speed events for idle tasks,
+                            // but always send the transition to zero once.
+                            if down > 0 || up > 0 || track.last_emitted_nonzero {
+                                events.emit(CoreEvent::TaskSpeed(crate::TaskSpeed {
+                                    task_id: *task_id,
+                                    download_bytes_per_second: down,
+                                    upload_bytes_per_second: up,
+                                }));
+                                track.last_emitted_nonzero = down > 0 || up > 0;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    /// Crash recovery: tasks left in an in-flight state by a previous process
+    /// (crash or hard kill) have no running engine anymore. Reset them to
+    /// `Paused` so the UI reflects reality and the user can resume; segment
+    /// data in storage is untouched, so resuming continues from the last
+    /// persisted offsets.
+    async fn recover_interrupted_tasks(&self) -> Result<()> {
+        let tasks = self.storage.list_tasks(TaskFilter::default()).await?;
+        for summary in tasks {
+            if matches!(
+                summary.state,
+                TaskState::Downloading
+                    | TaskState::Resolving
+                    | TaskState::Verifying
+                    | TaskState::Seeding
+            ) {
+                tracing::info!(task_id = ?summary.id, state = ?summary.state, "recovering interrupted task as paused");
+                self.storage
+                    .update_state(summary.id, TaskState::Paused)
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn create_task(&self, mut input: CreateTaskInput) -> Result<TaskId> {
+        input.isolate_sensitive_headers();
         let detail = self.storage.insert_task(input).await?;
         self.events
             .emit(CoreEvent::TaskCreated(TaskSummary::from(&detail.task)));
@@ -94,25 +203,40 @@ impl FluxionCore {
     }
 
     pub async fn start_task(&self, task_id: TaskId) -> Result<()> {
-        if self.active.lock().await.contains_key(&task_id) {
-            return Ok(());
-        }
-
+        // Fetch the task first so we can build the control with its limits,
+        // then claim the active slot atomically (check + insert under one
+        // lock hold) so two concurrent starts can never both spawn engines.
         let detail =
             self.storage.get_task(task_id).await?.ok_or_else(|| {
                 FluxionError::new(FluxionErrorKind::InvalidConfig, "task not found")
             })?;
+        if detail.task.state == TaskState::Completed {
+            // A completed task's temp file is gone; re-running the engine
+            // would clobber the finished file with a fresh sparse one.
+            return Err(FluxionError::new(
+                FluxionErrorKind::InvalidConfig,
+                "task is already completed",
+            ));
+        }
         let kind = detail.task.kind.download_kind();
         let engine = self.engines.get(&kind).cloned().ok_or_else(|| {
             FluxionError::new(FluxionErrorKind::Unsupported, "engine not registered")
         })?;
 
         let cancellation = CancellationToken::new();
-        let active_task = Arc::new(ActiveTask::new(cancellation.clone()));
-        self.active
-            .lock()
-            .await
-            .insert(task_id, active_task.clone());
+        let control = TaskControl::new(
+            cancellation.clone(),
+            detail.task.limits.clone(),
+            self.limiters.clone(),
+        );
+        let active_task = Arc::new(ActiveTask::new(cancellation, control.clone()));
+        {
+            let mut active = self.active.lock().await;
+            if active.contains_key(&task_id) {
+                return Ok(());
+            }
+            active.insert(task_id, active_task.clone());
+        }
 
         let ctx = EngineContext {
             storage: self.storage.clone(),
@@ -120,29 +244,34 @@ impl FluxionCore {
             state_providers: self.state_providers.clone(),
         };
         let active = self.active.clone();
-        let control = TaskControl::new(
-            cancellation,
-            detail.task.limits.clone(),
-            self.limiters.clone(),
-        );
 
         tokio::spawn(async move {
             let task_id = detail.task.id;
-            let result = async {
-                ctx.set_state(task_id, TaskState::Resolving).await?;
+            // Run the engine on an inner task so a panic surfaces as a
+            // JoinError instead of leaving a zombie entry in `active` that
+            // blocks pause/stop/delete forever.
+            let inner_ctx = ctx.clone();
+            let inner = tokio::spawn(async move {
+                inner_ctx.set_state(task_id, TaskState::Resolving).await?;
                 let prepared = engine
                     .prepare(
-                        ctx.clone(),
+                        inner_ctx.clone(),
                         PreparedTask {
                             task: detail.task,
                             credentials: detail.credentials,
                         },
                     )
                     .await?;
-                ctx.set_state(task_id, TaskState::Downloading).await?;
-                engine.run(ctx.clone(), prepared, control).await
-            }
-            .await;
+                inner_ctx.set_state(task_id, TaskState::Downloading).await?;
+                engine.run(inner_ctx, prepared, control).await
+            });
+            let result = match inner.await {
+                Ok(result) => result,
+                Err(join_error) => Err(FluxionError::new(
+                    FluxionErrorKind::Unknown,
+                    format!("engine task aborted: {join_error}"),
+                )),
+            };
 
             match result {
                 Ok(EngineExit::Completed { file_path }) => {
@@ -169,8 +298,19 @@ impl FluxionCore {
                     ctx.state_providers.remove(task_id).await;
                 }
             }
+            // Remove from `active` BEFORE signalling finished, and only if the
+            // entry is still this generation — a fast pause→start may already
+            // have installed a newer ActiveTask under the same id.
+            {
+                let mut map = active.lock().await;
+                if map
+                    .get(&task_id)
+                    .is_some_and(|entry| Arc::ptr_eq(entry, &active_task))
+                {
+                    map.remove(&task_id);
+                }
+            }
             active_task.mark_finished();
-            active.lock().await.remove(&task_id);
         });
 
         Ok(())
@@ -247,6 +387,9 @@ impl FluxionCore {
     }
 
     pub async fn update_settings(&self, settings: SettingsSnapshot) -> Result<()> {
+        // Persist first so a storage failure cannot leave the running process
+        // using settings that will silently disappear after restart.
+        self.storage.update_settings(settings.clone()).await?;
         self.limiters
             .global_download
             .update_limit(settings.download_limit)
@@ -255,7 +398,6 @@ impl FluxionCore {
             .global_upload
             .update_limit(settings.upload_limit)
             .await;
-        self.storage.update_settings(settings.clone()).await?;
         self.events.emit(CoreEvent::SettingsChanged(settings));
         Ok(())
     }
@@ -328,18 +470,20 @@ impl FluxionCore {
         Ok(())
     }
 
-    /// Update a task's rate limits. The new limits are persisted immediately.
-    /// If the task is currently running, the in-flight `TaskControl` keeps its
-    /// old limiters (they are private to the spawned engine future); the new
-    /// limits take effect the next time the task is started. Callers should
-    /// surface this caveat to the user.
+    /// Update a task's rate limits. The new limits are persisted immediately
+    /// and, when the task is running, pushed into its live `TaskControl` so
+    /// they take effect without a restart.
     pub async fn update_task_limits(&self, task_id: TaskId, limits: TaskRateLimit) -> Result<()> {
         let mut detail =
             self.storage.get_task(task_id).await?.ok_or_else(|| {
                 FluxionError::new(FluxionErrorKind::InvalidConfig, "task not found")
             })?;
-        detail.task.limits = limits;
+        detail.task.limits = limits.clone();
         self.storage.update_task(detail.task).await?;
+        let active = { self.active.lock().await.get(&task_id).cloned() };
+        if let Some(active) = active {
+            active.control.update_limits(limits).await;
+        }
         Ok(())
     }
 

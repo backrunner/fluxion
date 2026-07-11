@@ -7,6 +7,13 @@ use uuid::Uuid;
 
 pub type TaskId = Uuid;
 
+pub const SECRET_HTTP_SOURCE_URL: &str = "secret_http_source_url";
+pub const SECRET_FTP_SOURCE_URL: &str = "secret_ftp_source_url";
+pub const SECRET_SFTP_SOURCE_URL: &str = "secret_sftp_source_url";
+pub const SECRET_BT_MAGNET: &str = "secret_bt_magnet";
+pub const SECRET_BT_TRACKER_PREFIX: &str = "secret_bt_tracker_";
+pub const SECRET_PROXY_URL: &str = "secret_proxy_url";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DownloadKind {
     Http,
@@ -285,6 +292,57 @@ pub fn is_sensitive_header(name: &str) -> bool {
         || is_sensitive_key(&lower)
 }
 
+/// Canonical output-file-name sanitizer shared by every engine and by the
+/// path resolution used for open/reveal/delete. The name persisted on the
+/// task MUST be produced by this function so the database always matches
+/// what is written to disk.
+pub fn sanitize_file_name(input: &str) -> String {
+    let cleaned: String = input
+        .chars()
+        .map(|ch| match ch {
+            '/' | '\\' | ':' | '\0' => '_',
+            _ => ch,
+        })
+        .collect();
+    let trimmed = cleaned.trim();
+    if trimmed.is_empty() || trimmed == "." || trimmed == ".." {
+        "download".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// Decode percent-encoding in a URL path segment (e.g. `%20` → space) so
+/// inferred file names are human-readable. Invalid sequences are kept as-is;
+/// the result must still pass through [`sanitize_file_name`].
+pub fn percent_decode_lossy(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%'
+            && let (Some(&high), Some(&low)) = (bytes.get(i + 1), bytes.get(i + 2))
+            && let (Some(high), Some(low)) = (hex_val(high), hex_val(low))
+        {
+            out.push(high * 16 + low);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn hex_val(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
 pub fn redact_url(url: &Url) -> Url {
     let mut redacted = url.clone();
     if redacted.password().is_some() {
@@ -315,10 +373,8 @@ pub fn redact_url(url: &Url) -> Url {
 }
 
 fn redact_magnet(value: &str) -> String {
-    match Url::parse(value) {
-        Ok(url) => redact_url(&url).to_string(),
-        Err(_) => "<redacted-magnet>".to_string(),
-    }
+    let _ = value;
+    "magnet:?xt=urn:btih:redacted".to_string()
 }
 
 pub fn is_sensitive_key(name: &str) -> bool {
@@ -327,6 +383,9 @@ pub fn is_sensitive_key(name: &str) -> bool {
         || lower.contains("secret")
         || lower.contains("password")
         || lower.contains("key")
+        || lower.contains("signature")
+        || lower.contains("credential")
+        || lower == "sig"
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -376,6 +435,82 @@ pub struct CreateTaskInput {
     pub limits: TaskRateLimit,
     pub proxy: ProxyPolicy,
     pub credentials: TaskCredentials,
+}
+
+impl CreateTaskInput {
+    /// Keep sensitive HTTP headers out of the ordinary task metadata before
+    /// any storage implementation can serialize it.
+    pub fn isolate_sensitive_headers(&mut self) {
+        let Self {
+            kind, credentials, ..
+        } = self;
+        match kind {
+            TaskKind::Http(config) => {
+                let mut ordinary = Vec::with_capacity(config.headers.len());
+                for header in config.headers.drain(..) {
+                    if is_sensitive_header(&header.name) {
+                        let already_present = credentials
+                            .headers
+                            .iter()
+                            .any(|existing| existing.name.eq_ignore_ascii_case(&header.name));
+                        if !already_present {
+                            credentials.headers.push(header);
+                        }
+                    } else {
+                        ordinary.push(header);
+                    }
+                }
+                config.headers = ordinary;
+                isolate_url(&mut config.url, credentials, SECRET_HTTP_SOURCE_URL);
+            }
+            TaskKind::Bt(config) => {
+                if let BtSource::Magnet(value) = &mut config.source
+                    && !credentials.extra.contains_key(SECRET_BT_MAGNET)
+                {
+                    credentials
+                        .extra
+                        .insert(SECRET_BT_MAGNET.to_string(), value.clone());
+                    *value = redact_magnet(value);
+                }
+                if !config.trackers.is_empty()
+                    && !credentials
+                        .extra
+                        .keys()
+                        .any(|key| key.starts_with(SECRET_BT_TRACKER_PREFIX))
+                {
+                    for (index, tracker) in
+                        std::mem::take(&mut config.trackers).into_iter().enumerate()
+                    {
+                        credentials.extra.insert(
+                            format!("{SECRET_BT_TRACKER_PREFIX}{index:06}"),
+                            tracker.to_string(),
+                        );
+                    }
+                }
+            }
+            TaskKind::Ftp(config) => {
+                isolate_url(&mut config.url, credentials, SECRET_FTP_SOURCE_URL);
+            }
+            TaskKind::Sftp(config) => {
+                isolate_url(&mut config.url, credentials, SECRET_SFTP_SOURCE_URL);
+            }
+        }
+
+        if let ProxyPolicy::Custom(proxy) = &mut self.proxy {
+            isolate_url(&mut proxy.url, credentials, SECRET_PROXY_URL);
+        }
+    }
+}
+
+fn isolate_url(url: &mut Url, credentials: &mut TaskCredentials, key: &str) {
+    if !credentials.extra.contains_key(key) && url_has_sensitive_material(url) {
+        credentials.extra.insert(key.to_string(), url.to_string());
+        *url = redact_url(url);
+    }
+}
+
+pub fn url_has_sensitive_material(url: &Url) -> bool {
+    url.password().is_some() || url.query_pairs().any(|(key, _)| is_sensitive_key(&key))
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -539,5 +674,150 @@ pub fn cidr_contains(cidr: &str, ip: IpAddr) -> Option<bool> {
             Some((u128::from(base) & mask) == (u128::from(ip) & mask))
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_input_isolates_sensitive_http_headers() {
+        let mut input = CreateTaskInput {
+            kind: TaskKind::Http(HttpTaskConfig {
+                url: Url::parse("https://example.com/file.bin").unwrap(),
+                method: HttpMethod::Get,
+                headers: vec![
+                    HeaderPair {
+                        name: "Accept-Language".to_string(),
+                        value: "en-US".to_string(),
+                    },
+                    HeaderPair {
+                        name: "Authorization".to_string(),
+                        value: "Bearer from-config".to_string(),
+                    },
+                    HeaderPair {
+                        name: "X-Api-Key".to_string(),
+                        value: "api-secret".to_string(),
+                    },
+                    HeaderPair {
+                        name: "cookie".to_string(),
+                        value: "stale=value".to_string(),
+                    },
+                ],
+                max_connections: Some(16),
+                min_split_size: None,
+                redirect_limit: 10,
+            }),
+            save_dir: PathBuf::from("/tmp"),
+            file_name: None,
+            limits: TaskRateLimit::default(),
+            proxy: ProxyPolicy::UseGlobal,
+            credentials: TaskCredentials {
+                headers: vec![HeaderPair {
+                    name: "Cookie".to_string(),
+                    value: "session=fresh".to_string(),
+                }],
+                ..Default::default()
+            },
+        };
+
+        input.isolate_sensitive_headers();
+
+        let TaskKind::Http(config) = &input.kind else {
+            panic!("expected HTTP task");
+        };
+        assert_eq!(config.headers.len(), 1);
+        assert_eq!(config.headers[0].name, "Accept-Language");
+        assert_eq!(input.credentials.headers.len(), 3);
+        assert_eq!(input.credentials.headers[0].name, "Cookie");
+        assert_eq!(input.credentials.headers[0].value, "session=fresh");
+        assert_eq!(input.credentials.headers[1].name, "Authorization");
+        assert_eq!(input.credentials.headers[2].name, "X-Api-Key");
+    }
+
+    #[test]
+    fn create_input_isolates_sensitive_protocol_sources() {
+        let source = "https://example.com/file.bin?X-Amz-Signature=top-secret";
+        let proxy = "http://user:password@proxy.example:8080";
+        let mut input = CreateTaskInput {
+            kind: TaskKind::Http(HttpTaskConfig {
+                url: Url::parse(source).unwrap(),
+                method: HttpMethod::Get,
+                headers: Vec::new(),
+                max_connections: Some(16),
+                min_split_size: None,
+                redirect_limit: 10,
+            }),
+            save_dir: PathBuf::from("/tmp"),
+            file_name: None,
+            limits: TaskRateLimit::default(),
+            proxy: ProxyPolicy::Custom(ProxyConfig {
+                url: Url::parse(proxy).unwrap(),
+                username: Some("user".to_string()),
+            }),
+            credentials: TaskCredentials::default(),
+        };
+
+        input.isolate_sensitive_headers();
+        input.isolate_sensitive_headers();
+
+        let TaskKind::Http(config) = &input.kind else {
+            panic!("expected HTTP task");
+        };
+        assert!(!config.url.as_str().contains("top-secret"));
+        assert_eq!(
+            input.credentials.extra.get(SECRET_HTTP_SOURCE_URL),
+            Some(&source.to_string())
+        );
+        assert_eq!(
+            input.credentials.extra.get(SECRET_PROXY_URL),
+            Some(&"http://user:password@proxy.example:8080/".to_string())
+        );
+    }
+
+    #[test]
+    fn create_input_isolates_magnet_and_trackers() {
+        let magnet = "magnet:?xt=urn:btih:abc&tr=https%3A%2F%2Ftracker.example%2Fsecret";
+        let tracker = "https://tracker.example/private-passkey/announce";
+        let mut input = CreateTaskInput {
+            kind: TaskKind::Bt(BtTaskConfig {
+                source: BtSource::Magnet(magnet.to_string()),
+                selected_files: Vec::new(),
+                trackers: vec![Url::parse(tracker).unwrap()],
+                max_connections: None,
+                share_ratio_limit: None,
+                enable_seeding: false,
+                anti_leech: AntiLeechConfig::default(),
+                ip_filter: IpFilterConfig::default(),
+            }),
+            save_dir: PathBuf::from("/tmp"),
+            file_name: None,
+            limits: TaskRateLimit::default(),
+            proxy: ProxyPolicy::UseGlobal,
+            credentials: TaskCredentials::default(),
+        };
+
+        input.isolate_sensitive_headers();
+        input.isolate_sensitive_headers();
+
+        let TaskKind::Bt(config) = &input.kind else {
+            panic!("expected BT task");
+        };
+        assert!(config.trackers.is_empty());
+        assert!(
+            !matches!(&config.source, BtSource::Magnet(value) if value.contains("tracker.example"))
+        );
+        assert_eq!(
+            input.credentials.extra.get(SECRET_BT_MAGNET),
+            Some(&magnet.to_string())
+        );
+        assert_eq!(
+            input
+                .credentials
+                .extra
+                .get(&format!("{SECRET_BT_TRACKER_PREFIX}000000")),
+            Some(&tracker.to_string())
+        );
     }
 }
