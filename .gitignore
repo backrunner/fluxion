@@ -12,3 +12,16 @@ desktop/.vite/
 *.fluxionpart
 .playwright-cli/
 output/
+
+# Local secrets and signing material
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+
+# npm is the canonical desktop package manager
+desktop/pnpm-lock.yaml
+desktop/pnpm-workspace.yaml
