@@ -83,7 +83,7 @@ function toDownloadTask(task: TaskSummary): DownloadTask {
   return {
     ...task,
     kind: task.kind,
-    save_dir: task.kind === 'Bt' ? '/Users/orchiliao/Downloads/Torrents' : '/Users/orchiliao/Downloads',
+    save_dir: task.kind === 'Bt' ? '/Users/you/Downloads/Torrents' : '/Users/you/Downloads',
     limits: {
       download_bytes_per_second: null,
       upload_bytes_per_second: null

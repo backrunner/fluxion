@@ -1,5 +1,19 @@
 <script lang="ts">
-  import { Globe, FileText, Magnet, Folder, GripVertical } from '@lucide/svelte';
+  import {
+    ArrowDown,
+    ArrowUp,
+    FileArchive,
+    FileAudio,
+    FileCode,
+    FileImage,
+    FileSpreadsheet,
+    FileText,
+    FileVideo,
+    Folder,
+    Globe,
+    Magnet,
+    Package
+  } from '@lucide/svelte';
   import type { DownloadKind, RuntimeTask } from '../types';
   import {
     formatBytes,
@@ -8,9 +22,11 @@
     progressPercent,
     stateKind,
     stateColorVar,
-    stateBgVar
+    stateBgVar,
+    isActive
   } from '../format';
   import { eta } from '../stores/tasks';
+  import { t } from '../i18n';
 
   export let task: RuntimeTask;
   export let selected: boolean;
@@ -36,10 +52,79 @@
     Sftp: FileText
   };
 
+  const iconByExtension: Record<string, typeof Globe> = {
+    '7z': FileArchive,
+    aac: FileAudio,
+    apk: Package,
+    app: Package,
+    avi: FileVideo,
+    bz2: FileArchive,
+    csv: FileSpreadsheet,
+    deb: Package,
+    dmg: Package,
+    doc: FileText,
+    docx: FileText,
+    exe: Package,
+    flac: FileAudio,
+    gz: FileArchive,
+    htm: FileCode,
+    html: FileCode,
+    iso: Package,
+    jpeg: FileImage,
+    jpg: FileImage,
+    js: FileCode,
+    json: FileCode,
+    m4a: FileAudio,
+    m4v: FileVideo,
+    md: FileText,
+    mkv: FileVideo,
+    mov: FileVideo,
+    mp3: FileAudio,
+    mp4: FileVideo,
+    msi: Package,
+    ogg: FileAudio,
+    pdf: FileText,
+    pkg: Package,
+    png: FileImage,
+    ppt: FileText,
+    pptx: FileText,
+    rar: FileArchive,
+    rpm: Package,
+    sh: FileCode,
+    svg: FileImage,
+    tar: FileArchive,
+    tgz: FileArchive,
+    ts: FileCode,
+    txt: FileText,
+    wav: FileAudio,
+    webm: FileVideo,
+    webp: FileImage,
+    xls: FileSpreadsheet,
+    xlsx: FileSpreadsheet,
+    xml: FileCode,
+    yaml: FileCode,
+    yml: FileCode,
+    zip: FileArchive
+  };
+
   $: kind = stateKind(task.state);
   $: pct = progressPercent(task.downloaded_bytes, task.total_bytes);
   $: secs = eta(task.downloaded_bytes, task.total_bytes, downSpeed);
-  $: Icon = kindIcon[task.kind];
+  $: Icon = iconForTask(task);
+  $: live = isActive(task.state) && downSpeed > 0;
+
+  function iconForTask(item: RuntimeTask) {
+    if (item.kind !== 'Http') return kindIcon[item.kind];
+    const ext = fileExtension(item.file_name ?? '');
+    return ext ? iconByExtension[ext] ?? FileText : kindIcon.Http;
+  }
+
+  function fileExtension(name: string) {
+    const clean = name.split(/[?#]/)[0]?.trim() ?? '';
+    const basename = clean.split('/').filter(Boolean).pop() ?? clean;
+    const match = /\.([a-z0-9]+)$/i.exec(basename);
+    return match?.[1].toLowerCase() ?? '';
+  }
 
   function onRowClick(e: MouseEvent) {
     select(e);
@@ -58,6 +143,7 @@
   class:selected
   class:dragging
   class:drop-target={dropTarget}
+  class:live
   role="button"
   tabindex="0"
   aria-pressed={selected}
@@ -77,7 +163,7 @@
       <Icon size={14} />
     </span>
     <span class="name" title={task.file_name ?? task.id}>{task.file_name ?? task.id.slice(0, 8)}</span>
-    <span class={`pill ${kind}`}>{task.state}</span>
+    <span class={`pill ${kind}`}>{$t(`state.${task.state}`)}</span>
   </div>
 
   <div class="bar" aria-hidden="true">
@@ -87,18 +173,18 @@
   <div class="meta">
     <span class="size">{formatBytes(task.downloaded_bytes)} / {formatBytes(task.total_bytes)}</span>
     {#if downSpeed > 0}
-      <span class="speed down" title="Download speed">{formatSpeed(downSpeed)}</span>
+      <span class="sep" aria-hidden="true"></span>
+      <span class="speed down" title={$t('task.downloadSpeed')}><ArrowDown size={11} class="ic" /> {formatSpeed(downSpeed)}</span>
     {/if}
     {#if upSpeed > 0}
-      <span class="speed up" title="Upload speed">↑ {formatSpeed(upSpeed)}</span>
+      <span class="sep" aria-hidden="true"></span>
+      <span class="speed up" title={$t('task.uploadSpeed')}><ArrowUp size={11} class="ic" /> {formatSpeed(upSpeed)}</span>
     {/if}
     {#if secs != null && task.state === 'Downloading'}
-      <span class="eta" title="Remaining time">{formatDuration(secs)}</span>
+      <span class="sep" aria-hidden="true"></span>
+      <span class="eta" title={$t('task.remainingTime')}>{formatDuration(secs)}</span>
     {/if}
-    <span class="row-actions">
-      <span class="row-progress" title="Progress">{pct.toFixed(1)}%</span>
-      <GripVertical size={13} aria-hidden="true" />
-    </span>
+    <span class="row-progress" title={$t('task.progress')}>{pct.toFixed(1)}%</span>
   </div>
 </div>
 
@@ -106,33 +192,36 @@
   @use '../../styles/tokens' as *;
 
   .task-row {
+    position: relative;
     display: grid;
     grid-template-rows: auto auto auto;
-    gap: $space-2;
-    width: 100%;
-    padding: $space-3 $space-4;
+    gap: 5px;
+    width: calc(100% - 16px);
+    height: 70px;
+    margin: 2px 8px;
+    padding: 7px $space-3;
     border-radius: $radius-lg;
-    border: 1px solid var(--border);
-    background: var(--surface);
+    border: 1px solid transparent;
+    background: color-mix(in srgb, var(--surface-2) 36%, transparent);
     color: var(--text);
     text-align: left;
     cursor: pointer;
-    transition: border-color $dur-fast $ease-out, background $dur-fast $ease-out,
-      transform $dur-fast $ease-out, box-shadow $dur-fast $ease-out;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--border) 35%, transparent);
+    transition: background $dur-base $ease-out, border-color $dur-fast $ease-out,
+      box-shadow $dur-base $ease-out, transform $dur-fast $ease-out;
     @include focus-ring;
   }
 
   .task-row:hover {
-    border-color: var(--border-strong);
-    background: var(--surface-2);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
+    background: var(--surface-gradient);
+    border-color: var(--border);
+    box-shadow: var(--shadow-sm), var(--inner-highlight);
   }
 
   .task-row.selected {
-    border-color: var(--accent);
-    background: linear-gradient(180deg, var(--accent-soft), transparent 72%), var(--surface);
-    box-shadow: 0 0 0 1px var(--accent);
+    background: var(--selected-gradient);
+    border-color: var(--accent-soft-strong);
+    box-shadow: var(--selected-shadow), var(--inner-highlight);
   }
 
   .task-row.dragging {
@@ -141,7 +230,7 @@
 
   .task-row.drop-target {
     border-color: var(--accent);
-    box-shadow: inset 0 0 0 1px var(--accent);
+    box-shadow: var(--selected-shadow), var(--inner-highlight);
   }
 
   .top {
@@ -158,12 +247,11 @@
     width: 24px;
     height: 24px;
     border-radius: $radius-sm;
-    background: var(--surface-3);
+    background: var(--control-gradient);
     border: 1px solid var(--border);
     box-shadow: var(--inner-highlight);
     color: var(--text-muted);
     flex: none;
-    flex-shrink: 0;
 
     :global(svg) {
       display: block;
@@ -181,81 +269,95 @@
   }
 
   .pill {
-    @include pill;
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    font-size: 11px;
+    font-weight: $fw-semibold;
+    line-height: 1.4;
+    letter-spacing: 0;
     color: var(--row-state);
-    background: var(--row-state-bg);
+    background: transparent;
     flex: none;
   }
 
   .bar {
-    height: 6px;
-    border-radius: $radius-pill;
+    height: 3px;
+    border-radius: 2px;
     background: var(--surface-3);
     overflow: hidden;
     position: relative;
   }
 
   .bar-fill {
+    position: relative;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, var(--row-state), color-mix(in srgb, var(--row-state) 62%, white));
+    background: var(--row-state);
     transition: width $dur-slow $ease-out;
+  }
+
+  // Live progress: a drifting sheen marks in-flight transfers.
+  .task-row.live .bar-fill {
+    @include bar-shimmer;
   }
 
   .meta {
     display: flex;
     align-items: center;
-    gap: $space-3;
+    gap: 7px;
     font-size: $fs-xs;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
+    min-width: 0;
   }
 
   .size {
     font-family: $font-mono;
+    @include hide-overflow;
+  }
+
+  .sep {
+    width: 1px;
+    height: 10px;
+    background: var(--border-strong);
+    flex: none;
   }
 
   .speed {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
     font-family: $font-mono;
+    white-space: nowrap;
     &.down {
       color: var(--state-good);
     }
     &.up {
       color: var(--cool);
     }
-  }
-
-  .eta {
-    margin-left: auto;
-    font-family: $font-mono;
-    color: var(--text);
-    padding: 1px $space-2;
-    border-radius: $radius-pill;
-    background: var(--surface-3);
-  }
-
-  .row-actions {
-    display: inline-flex;
-    align-items: center;
-    gap: $space-1;
-    margin-left: auto;
-    color: var(--text-faint);
-
-    :global(svg) {
-      display: block;
-      margin: 0;
-      opacity: 0.72;
+    :global(.ic) {
+      opacity: 0.85;
     }
   }
 
+  .eta {
+    font-family: $font-mono;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
   .row-progress {
-    min-width: 46px;
-    padding: 2px $space-2;
-    border-radius: $radius-pill;
-    background: var(--surface-3);
+    margin-left: auto;
+    min-width: 44px;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
     color: var(--text-strong);
     font-family: $font-mono;
     font-weight: $fw-semibold;
     text-align: right;
+    flex: none;
   }
+
 </style>

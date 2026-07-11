@@ -47,6 +47,17 @@ export type BtSource =
   | { TorrentFile: string }
   | { Magnet: string };
 
+export interface AntiLeechConfig {
+  blocked_client_names: string[];
+  blocked_peer_id_prefixes: string[];
+  block_suspicious_fast_disconnects: boolean;
+}
+
+export interface IpFilterConfig {
+  allow: { cidr: string }[];
+  deny: { cidr: string }[];
+}
+
 export interface BtTaskConfig {
   source: BtSource;
   selected_files: number[];
@@ -54,8 +65,8 @@ export interface BtTaskConfig {
   max_connections?: number | null;
   share_ratio_limit?: number | null;
   enable_seeding: boolean;
-  anti_leech: unknown;
-  ip_filter: unknown;
+  anti_leech: AntiLeechConfig;
+  ip_filter: IpFilterConfig;
 }
 
 export interface FtpTaskConfig {
@@ -186,12 +197,9 @@ export interface MagnetPreview {
   trackers: string[];
 }
 
-// Sidebar navigation: task categories + settings.
+// Sidebar navigation: high-level destinations. Task status filtering lives in
+// the downloads toolbar.
 export type SidebarFilter =
   | 'all'
-  | 'downloading'
-  | 'completed'
-  | 'failed'
-  | 'stopped'
   | 'trash'
   | 'settings';

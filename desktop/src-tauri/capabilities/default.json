@@ -3,5 +3,12 @@
   "identifier": "default",
   "description": "Default permissions for Fluxion desktop windows",
   "windows": ["main"],
-  "permissions": ["core:default", "opener:default", "dialog:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "opener:default",
+    "dialog:default",
+    "process:allow-restart",
+    "updater:default"
+  ]
 }

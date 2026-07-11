@@ -4,6 +4,7 @@
   // holds extra trackers, connection limit, share ratio, and seeding toggle.
   import Field from '../common/Field.svelte';
   import Grid2 from '../common/Grid2.svelte';
+  import { t } from '../../i18n';
 
   export let trackers = '';
   export let maxConnections = '';
@@ -12,24 +13,24 @@
 </script>
 
 <Grid2>
-  <Field label="Max connections" hint="optional">
-    <input class="fx-input" bind:value={maxConnections} inputmode="numeric" placeholder="unlimited" autocomplete="off" />
+  <Field label={$t('new.maxConnections')} hint={$t('common.optional')}>
+    <input class="fx-input" bind:value={maxConnections} type="number" min="1" step="1" placeholder={$t('common.unlimited')} autocomplete="off" />
   </Field>
-  <Field label="Share ratio stop" hint="e.g. 1.0">
-    <input class="fx-input" bind:value={shareRatio} inputmode="decimal" placeholder="no limit" autocomplete="off" />
+  <Field label={$t('fields.shareRatio')} hint={$t('fields.exampleRatio')}>
+    <input class="fx-input" bind:value={shareRatio} type="number" min="0.01" step="any" placeholder={$t('fields.noLimit')} autocomplete="off" />
   </Field>
 </Grid2>
 
-<Field label="Extra trackers" hint="one per line">
+<Field label={$t('fields.extraTrackers')} hint={$t('common.onePerLine')}>
   <textarea class="fx-textarea" bind:value={trackers} rows="3" placeholder="udp://tracker.opentrackr.org:1337/announce"></textarea>
 </Field>
 
 <label class="toggle">
   <input type="checkbox" bind:checked={enableSeeding} />
-  <span>Seed after completion</span>
+  <span>{$t('fields.seedAfter')}</span>
 </label>
 
-<p class="note">File selection is available in the task detail view once the torrent metadata is parsed.</p>
+<p class="note">{$t('fields.btFileHint')}</p>
 
 <style lang="scss">
   @use '../../../styles/tokens' as *;

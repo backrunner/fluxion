@@ -1,7 +1,8 @@
 <script lang="ts">
   import {
-    Activity,
-    Inbox,
+    Check,
+    DownloadCloud,
+    ListFilter,
     PanelRightClose,
     PanelRightOpen,
     Pause,
@@ -12,20 +13,29 @@
     Square,
     Trash2
   } from '@lucide/svelte';
+  import { DropdownMenu } from 'bits-ui';
   import type { RuntimeTask, SidebarFilter, TaskState } from '../types';
   import { canPause, canStart, canStop } from '../format';
   import { taskSpeeds, trashedTaskIds } from '../stores/tasks';
   import TaskRow from './TaskRow.svelte';
   import Select from './common/Select.svelte';
+  import { t, type Translate } from '../i18n';
+  import { windowDrag } from '../windowDrag';
 
   type SortMode = 'created' | 'speed' | 'name' | 'manual';
   type TaskAction = 'start' | 'pause' | 'stop' | 'delete';
+  type StatusFilter = 'all' | 'active' | 'completed' | 'failed' | 'stopped';
 
-  const sortOptions: { value: SortMode; label: string }[] = [
-    { value: 'created', label: 'Added time' },
-    { value: 'speed', label: 'Speed' },
-    { value: 'name', label: 'Name' },
-    { value: 'manual', label: 'Manual' }
+  const ROW_HEIGHT = 74;
+  const VIRTUALIZE_AFTER = 60;
+  const OVERSCAN = 5;
+
+  let sortOptions: { value: SortMode; label: string }[] = [];
+  $: sortOptions = [
+    { value: 'created', label: $t('list.sort.added') },
+    { value: 'speed', label: $t('list.sort.speed') },
+    { value: 'name', label: $t('list.sort.name') },
+    { value: 'manual', label: $t('list.sort.manual') }
   ];
 
   export let tasks: RuntimeTask[];
@@ -34,7 +44,6 @@
   export let busy: boolean;
   export let detailOpen: boolean;
   export let refreshing = false;
-  export let statusFilter: TaskState | 'all' = 'all';
   export let sidebarFilter: SidebarFilter = 'all';
 
   export let onSelect: (id: string) => void | Promise<void> = () => {};
@@ -45,12 +54,15 @@
   export let onClearTrash: () => void = () => {};
 
   let filter = '';
+  let statusFilter: StatusFilter = 'all';
   let sortMode: SortMode = 'created';
   let selectedIds: string[] = [];
   let anchorId = '';
   let manualOrder: string[] = [];
   let draggingId = '';
   let dropTargetId = '';
+  let listScrollTop = 0;
+  let listViewportHeight = 0;
   let contextMenu: { open: boolean; x: number; y: number; taskId: string } = {
     open: false,
     x: 0,
@@ -62,28 +74,49 @@
   $: trashIds = $trashedTaskIds;
   $: trashIdSet = new Set(trashIds);
   $: isTrashView = sidebarFilter === 'trash';
-  $: title = isTrashView ? 'Trash' : 'Downloads';
+  $: title = isTrashView ? $t('nav.trash') : $t('nav.downloads');
+  $: normalTasks = tasks.filter((task) => !trashIdSet.has(task.id));
+  $: hasTasksInView = isTrashView ? tasks.some((task) => trashIdSet.has(task.id)) : normalTasks.length > 0;
+  $: filterOptions = buildFilterOptions(normalTasks, $t);
+  $: activeFilterLabel = filterOptions.find((item) => item.value === statusFilter)?.label ?? $t('list.filter.all');
   $: visibleBase = filterTasks(tasks, trashIdSet, isTrashView, statusFilter, filter);
   $: visibleTasks = sortTasks(visibleBase, sortMode, manualOrder, speeds);
+  $: virtualized = visibleTasks.length > VIRTUALIZE_AFTER;
+  $: virtualStart = virtualized
+    ? Math.min(visibleTasks.length, Math.max(0, Math.floor(listScrollTop / ROW_HEIGHT) - OVERSCAN))
+    : 0;
+  $: virtualEnd = virtualized
+    ? Math.min(visibleTasks.length, Math.ceil((listScrollTop + listViewportHeight) / ROW_HEIGHT) + OVERSCAN)
+    : visibleTasks.length;
+  $: renderedTasks = visibleTasks.slice(virtualStart, virtualEnd);
+  $: virtualBefore = virtualStart * ROW_HEIGHT;
+  $: virtualAfter = Math.max(0, (visibleTasks.length - virtualEnd) * ROW_HEIGHT);
   $: visibleIds = visibleTasks.map((task) => task.id);
-  $: visibleActiveCount = visibleBase.filter((task) =>
-    task.state === 'Downloading' || task.state === 'Seeding' || task.state === 'Resolving' || task.state === 'Queued'
-  ).length;
   $: selectedCount = selectedIds.length;
   $: contextIds = idsForContextMenu(contextMenu, selectedIds);
   $: contextTasks = contextIds.map((id) => tasks.find((task) => task.id === id)).filter(Boolean) as RuntimeTask[];
-  $: contextStartText = contextStartLabel(contextTasks);
+  $: contextStartText = contextStartLabel(contextTasks, $t);
   $: contextStartDisabled = busy || isTrashView || !contextTasks.some((task) => canStart(task.state));
   $: contextPauseDisabled = busy || isTrashView || !contextTasks.some((task) => canPause(task.state));
   $: contextStopDisabled = busy || isTrashView || !contextTasks.some((task) => canStop(task.state));
   $: contextDeleteDisabled = busy || contextTasks.length === 0;
   $: canPauseSelection = selectedIds.some((id) => canPause(tasks.find((task) => task.id === id)?.state ?? 'Completed'));
-  $: emptyTitle = isTrashView ? 'Trash is empty' : tasks.length === 0 ? 'No downloads' : 'No matches';
+  $: emptyTitle = isTrashView ? $t('list.empty.trash.title') : normalTasks.length === 0 ? $t('list.empty.downloads.title') : $t('list.empty.matches.title');
   $: emptyCopy = isTrashView
-    ? 'Deleted tasks will wait here until you clear them.'
-    : tasks.length === 0
-      ? 'Create a new task to get started.'
-      : 'Adjust your filters to see more.';
+    ? $t('list.empty.trash.copy')
+    : normalTasks.length === 0
+      ? $t('list.empty.downloads.copy')
+      : $t('list.empty.matches.copy');
+
+  function buildFilterOptions(source: RuntimeTask[], translate: Translate) {
+    return [
+      { value: 'all' as const, label: translate('list.filter.all'), count: source.length },
+      { value: 'active' as const, label: translate('list.filter.active'), count: source.filter((task) => isActiveState(task.state)).length },
+      { value: 'completed' as const, label: translate('list.filter.completed'), count: source.filter((task) => task.state === 'Completed').length },
+      { value: 'failed' as const, label: translate('list.filter.failed'), count: source.filter((task) => task.state === 'Failed').length },
+      { value: 'stopped' as const, label: translate('list.filter.stopped'), count: source.filter((task) => task.state === 'Stopped').length }
+    ];
+  }
 
   $: {
     const allIds = tasks.map((task) => task.id);
@@ -117,7 +150,7 @@
     source: RuntimeTask[],
     trashed: Set<string>,
     trashView: boolean,
-    stateFilter: TaskState | 'all',
+    stateFilter: StatusFilter,
     search: string
   ) {
     const needle = search.trim().toLowerCase();
@@ -127,13 +160,26 @@
         if (!isTrashed) return false;
       } else {
         if (isTrashed) return false;
-        if (stateFilter !== 'all' && task.state !== stateFilter) return false;
+        if (!matchesStatusFilter(task.state, stateFilter)) return false;
       }
 
       if (!needle) return true;
       const haystack = `${task.file_name ?? ''} ${task.id} ${task.state} ${task.kind}`.toLowerCase();
       return haystack.includes(needle);
     });
+  }
+
+  function matchesStatusFilter(state: TaskState, stateFilter: StatusFilter) {
+    if (stateFilter === 'all') return true;
+    if (stateFilter === 'active') return isActiveState(state);
+    if (stateFilter === 'completed') return state === 'Completed';
+    if (stateFilter === 'failed') return state === 'Failed';
+    if (stateFilter === 'stopped') return state === 'Stopped';
+    return true;
+  }
+
+  function isActiveState(state: TaskState) {
+    return state === 'Downloading' || state === 'Seeding' || state === 'Resolving' || state === 'Queued' || state === 'Verifying';
   }
 
   function sortTasks(list: RuntimeTask[], mode: SortMode, order: string[], speedMap: typeof speeds) {
@@ -206,26 +252,45 @@
     }
   }
 
+  function handleListScroll(event: Event) {
+    const viewport = event.currentTarget as HTMLDivElement;
+    listScrollTop = viewport.scrollTop;
+    listViewportHeight = viewport.clientHeight;
+    closeContextMenu();
+  }
+
   function idsForContextMenu(menu: typeof contextMenu, selection: string[]) {
     if (!menu.taskId) return [];
     return selection.includes(menu.taskId) ? selection : [menu.taskId];
   }
 
   function runContextAction(action: TaskAction) {
-    const ids = contextIds;
+    const ids = eligibleIds(contextIds, action);
     closeContextMenu();
     void onTaskAction(ids, action);
   }
 
   function runPauseSelected() {
-    if (selectedIds.length === 0) return;
-    void onTaskAction(selectedIds, 'pause');
+    const ids = eligibleIds(selectedIds, 'pause');
+    if (ids.length === 0) return;
+    void onTaskAction(ids, 'pause');
   }
 
-  function contextStartLabel(items: RuntimeTask[]) {
-    if (items.some((task) => task.state === 'Stopped')) return 'Download again';
-    if (items.some((task) => task.state === 'Failed')) return 'Retry';
-    return 'Start';
+  function eligibleIds(ids: string[], action: TaskAction) {
+    if (action === 'delete') return ids;
+    return ids.filter((id) => {
+      const task = tasks.find((item) => item.id === id);
+      if (!task) return false;
+      if (action === 'start') return canStart(task.state);
+      if (action === 'pause') return canPause(task.state);
+      return canStop(task.state);
+    });
+  }
+
+  function contextStartLabel(items: RuntimeTask[], translate: Translate) {
+    if (items.some((task) => task.state === 'Stopped')) return translate('list.action.downloadAgain');
+    if (items.some((task) => task.state === 'Failed')) return translate('list.action.retry');
+    return translate('list.action.start');
   }
 
   function onDragStart(task: RuntimeTask, event: DragEvent) {
@@ -274,73 +339,101 @@
 <svelte:window on:click={closeContextMenu} on:keydown={(e) => e.key === 'Escape' && closeContextMenu()} />
 
 <section class="list-pane">
-  <header class="pane-head" data-tauri-drag-region="true">
-    <div class="title-row">
-      <h2>{title}</h2>
-      {#if visibleActiveCount > 0 && !isTrashView}
-        <span class="active-capsule" title="{visibleActiveCount} active task{visibleActiveCount === 1 ? '' : 's'}">
-          <span class="capsule-dot"></span>
-          {visibleActiveCount} active
-        </span>
-      {/if}
+  <header class="pane-head" data-tauri-drag-region="true" use:windowDrag>
+    <div class="title-row" data-tauri-drag-region="true">
+      <h2 data-tauri-drag-region="true">{title}</h2>
       {#if selectedCount > 1}
-        <span class="selected-capsule">{selectedCount} selected</span>
+        <span class="selected-capsule">{$t('list.selected', { count: selectedCount })}</span>
       {/if}
-      <span class="sort-wrap">
-        <Select
-          items={sortOptions}
-          bind:value={sortMode}
-          placeholder="Sort"
-          size="sm"
-          ariaLabel="Sort tasks"
-        />
-      </span>
-      <div class="head-tools">
+      <div class="head-tools" data-tauri-drag-region="true">
         {#if isTrashView}
-          <button class="clear-btn danger" on:click={onClearTrash} disabled={trashIds.length === 0 || busy} title="Clear Trash">
+          <button class="clear-btn danger" on:click={onClearTrash} disabled={trashIds.length === 0 || busy} title={$t('list.clearTrash')}>
             <Trash2 size={14} />
-            <span>Clear</span>
+            <span>{$t('list.clear')}</span>
           </button>
         {:else}
-          <button class="icon-btn" on:click={onNewTask} title="New task" aria-label="New task">
-            <Plus size={16} />
-          </button>
-          <button
-            class="icon-btn"
-            on:click={runPauseSelected}
-            disabled={!canPauseSelection || busy}
-            title="Pause selected"
-            aria-label="Pause selected"
-          >
-            <Pause size={15} />
+          <button class="new-btn" on:click={onNewTask} title={$t('list.newDownload')} aria-label={$t('list.newDownload')}>
+            <Plus size={17} />
           </button>
         {/if}
-        <button class="icon-btn" on:click={onRefresh} disabled={refreshing} title="Refresh" aria-label="Refresh">
-          <RefreshCw size={15} class={refreshing ? 'spin' : ''} />
-        </button>
-        <button class="icon-btn" on:click={onToggleDetail} title={detailOpen ? 'Hide detail' : 'Show detail'} aria-label="Toggle detail">
-          {#if detailOpen}
-            <PanelRightClose size={16} />
-          {:else}
-            <PanelRightOpen size={16} />
-          {/if}
-        </button>
+        {#if hasTasksInView}
+          <button class="icon-btn" on:click={onToggleDetail} title={detailOpen ? $t('list.hideDetail') : $t('list.showDetail')} aria-label={$t('list.toggleDetail')}>
+            {#if detailOpen}
+              <PanelRightClose size={16} />
+            {:else}
+              <PanelRightOpen size={16} />
+            {/if}
+          </button>
+        {/if}
       </div>
     </div>
-    <div class="search-row">
+    <div class="search-row" data-tauri-drag-region="true">
       <div class="head-search">
         <Search size={13} />
         <input
           type="text"
-          placeholder="Search..."
+          placeholder={$t('list.search')}
           value={filter}
           on:input={(e) => (filter = e.currentTarget.value)}
         />
       </div>
+      <span class="sort-wrap">
+        <Select
+          items={sortOptions}
+          bind:value={sortMode}
+          placeholder={$t('list.sort')}
+          size="sm"
+          ariaLabel={$t('list.sortTasks')}
+        />
+      </span>
+      {#if !isTrashView}
+        <button
+          class="icon-btn"
+          on:click={runPauseSelected}
+          disabled={!canPauseSelection || busy}
+          title={$t('list.pauseSelected')}
+          aria-label={$t('list.pauseSelected')}
+        >
+          <Pause size={15} />
+        </button>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger
+            class={`filter-trigger ${statusFilter !== 'all' ? 'active' : ''}`}
+            title={$t('list.filterTitle', { filter: activeFilterLabel })}
+            aria-label={$t('list.filterAria', { filter: activeFilterLabel })}
+          >
+            <ListFilter size={15} />
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content class="filter-menu" align="end" sideOffset={6}>
+              {#each filterOptions as option (option.value)}
+                <DropdownMenu.Item
+                  class="filter-menu-item"
+                  textValue={option.label}
+                  onSelect={() => (statusFilter = option.value)}
+                >
+                  <span class="filter-menu-label">{option.label}</span>
+                  <span class="filter-menu-count">{option.count}</span>
+                  <span class="filter-menu-check" class:shown={statusFilter === option.value}>
+                    <Check size={13} />
+                  </span>
+                </DropdownMenu.Item>
+              {/each}
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      {/if}
+      <button class="icon-btn" on:click={onRefresh} disabled={refreshing} title={$t('common.refresh')} aria-label={$t('common.refresh')}>
+        <RefreshCw size={15} class={refreshing ? 'spin' : ''} />
+      </button>
     </div>
   </header>
 
-  <div class="list" on:scroll={closeContextMenu}>
+  <div
+    class="list"
+    bind:clientHeight={listViewportHeight}
+    on:scroll={handleListScroll}
+  >
     {#if loading}
       {#each Array(5) as _, i}
         <div class="skeleton" aria-hidden="true">
@@ -351,12 +444,15 @@
       {/each}
     {:else if visibleTasks.length === 0}
       <div class="empty">
-        <div class="empty-icon"><Inbox size={26} /></div>
+        <div class="empty-icon">{#if isTrashView}<Trash2 size={26} />{:else}<DownloadCloud size={26} />{/if}</div>
         <h3>{emptyTitle}</h3>
         <p>{emptyCopy}</p>
       </div>
     {:else}
-      {#each visibleTasks as task (task.id)}
+      {#if virtualized && virtualBefore > 0}
+        <div class="virtual-spacer" style={`height:${virtualBefore}px;`} aria-hidden="true"></div>
+      {/if}
+      {#each renderedTasks as task (task.id)}
         <TaskRow
           {task}
           selected={selectedIds.includes(task.id)}
@@ -377,6 +473,9 @@
           dragEnd={clearDrag}
         />
       {/each}
+      {#if virtualized && virtualAfter > 0}
+        <div class="virtual-spacer" style={`height:${virtualAfter}px;`} aria-hidden="true"></div>
+      {/if}
     {/if}
   </div>
 </section>
@@ -396,15 +495,15 @@
         <Play size={14} /> {contextStartText}
       </button>
       <button class="context-item" disabled={contextPauseDisabled} on:click={() => runContextAction('pause')} role="menuitem">
-        <Pause size={14} /> Pause
+        <Pause size={14} /> {$t('list.action.pause')}
       </button>
       <button class="context-item" disabled={contextStopDisabled} on:click={() => runContextAction('stop')} role="menuitem">
-        <Square size={14} /> Stop
+        <Square size={14} /> {$t('list.action.stop')}
       </button>
       <div class="context-sep" aria-hidden="true"></div>
     {/if}
     <button class="context-item danger" disabled={contextDeleteDisabled} on:click={() => runContextAction('delete')} role="menuitem">
-      <Trash2 size={14} /> {isTrashView ? 'Delete permanently' : 'Delete'}
+      <Trash2 size={14} /> {isTrashView ? $t('list.action.deletePermanent') : $t('common.delete')}
     </button>
   </div>
 {/if}
@@ -417,21 +516,20 @@
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    background: var(--surface-2);
+    background: var(--surface);
     border-right: 1px solid var(--border);
-    box-shadow: var(--inner-highlight);
     overflow: hidden;
   }
 
   .pane-head {
     display: flex;
     flex-direction: column;
-    gap: $space-2;
+    gap: 7px;
     flex: none;
-    padding: $space-3 $space-3 $space-2 $space-4;
+    padding: 9px 12px 8px 14px;
     border-bottom: 1px solid var(--border);
-    background: linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 80%, var(--surface) 20%), var(--surface-2));
-    -webkit-app-region: drag;
+    background: linear-gradient(180deg, var(--surface), var(--surface-2));
+    box-shadow: var(--inner-highlight);
   }
 
   .title-row {
@@ -439,19 +537,18 @@
     align-items: center;
     gap: $space-2;
     min-width: 0;
+    min-height: 30px;
   }
 
   .pane-head h2 {
-    font-size: $fs-md;
+    font-size: 15px;
     letter-spacing: 0;
     flex: none;
   }
 
-  .active-capsule,
   .selected-capsule {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
     flex: none;
     padding: 2px $space-2;
     border-radius: $radius-pill;
@@ -466,21 +563,15 @@
   .selected-capsule {
     color: var(--accent);
     background: var(--accent-soft);
-    border-color: rgba(249, 115, 22, 0.24);
-  }
-
-  .capsule-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--state-good);
-    flex: none;
+    border-color: var(--accent-soft-strong);
+    box-shadow: var(--inner-highlight);
   }
 
   .search-row {
     display: flex;
+    align-items: center;
+    gap: $space-1;
     min-width: 0;
-    -webkit-app-region: no-drag;
   }
 
   .head-search {
@@ -488,20 +579,25 @@
     align-items: center;
     gap: 6px;
     padding: 0 $space-2;
-    height: 32px;
+    height: 30px;
     flex: 1;
     min-width: 0;
-    border-radius: $radius-sm;
-    background: var(--surface-3);
-    border: 1px solid var(--border);
+    border-radius: $radius-lg;
+    @include glass-control;
     color: var(--text-muted);
-    transition: border-color $dur-fast $ease-out, box-shadow $dur-fast $ease-out;
-    -webkit-app-region: no-drag;
+    transition: border-color $dur-fast $ease-out, box-shadow $dur-fast $ease-out, background $dur-fast $ease-out;
 
+    &:hover:not(:focus-within) {
+      border-color: transparent;
+      transform: none;
+    }
     &:focus-within {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--focus-ring);
+      border-color: transparent;
+      background: var(--glass-fill-hover);
+      box-shadow: 0 0 0 2px var(--focus-ring), var(--glass-rim),
+        var(--glass-control-shadow);
       color: var(--text);
+      transform: none;
     }
 
     input {
@@ -524,15 +620,13 @@
     align-items: center;
     gap: 2px;
     margin-left: auto;
-    -webkit-app-region: no-drag;
   }
 
   .sort-wrap {
     display: inline-flex;
     align-items: center;
-    margin-left: auto;
-    min-width: 116px;
-    -webkit-app-region: no-drag;
+    flex: none;
+    min-width: 108px;
 
     :global(.fx-select-trigger) {
       flex: 1;
@@ -546,9 +640,8 @@
     align-items: center;
     justify-content: center;
     height: 30px;
-    border-radius: $radius-sm;
-    border: 1px solid transparent;
-    background: transparent;
+    border-radius: $radius-md;
+    @include glass-hover-control;
     color: var(--text-muted);
     cursor: pointer;
     transition: background $dur-fast $ease-out, color $dur-fast $ease-out,
@@ -556,10 +649,7 @@
     @include focus-ring;
 
     &:not(:disabled):hover {
-      background: var(--surface-3);
       color: var(--text-strong);
-      border-color: var(--border);
-      box-shadow: var(--shadow-sm);
     }
     &:disabled {
       opacity: 0.5;
@@ -569,6 +659,117 @@
 
   .icon-btn {
     width: 30px;
+  }
+
+  .new-btn {
+    @include primary-button;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: $radius-lg;
+    margin-right: 2px;
+  }
+
+  // Base styles for the bits-ui dropdown trigger must be :global — Svelte
+  // scoping hashes don't reach elements rendered by child components, so the
+  // scoped `.icon-btn` rules above never match it (it rendered as a bare
+  // user-agent button otherwise).
+  :global(.filter-trigger) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: $radius-md;
+    @include glass-hover-control;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background $dur-fast $ease-out, color $dur-fast $ease-out,
+      border-color $dur-fast $ease-out, box-shadow $dur-fast $ease-out;
+  }
+
+  :global(.filter-trigger:hover) {
+    color: var(--text-strong);
+  }
+
+  :global(.filter-trigger:focus-visible) {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--focus-ring);
+    border-color: var(--accent);
+  }
+
+  :global(.filter-trigger.active) {
+    background: var(--selected-gradient);
+    color: var(--accent);
+    border-color: transparent;
+    box-shadow: var(--glass-rim), var(--selected-shadow);
+  }
+
+  :global(.filter-menu) {
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 172px;
+    padding: $space-1;
+    border-radius: $radius-md;
+    background: var(--elevated);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-lg), var(--inner-highlight);
+    animation: menu-in $dur-base $ease-out;
+  }
+
+  :global(.filter-menu-item) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 16px;
+    align-items: center;
+    gap: $space-2;
+    padding: 8px $space-2;
+    border-radius: $radius-sm;
+    color: var(--text);
+    font-size: $fs-sm;
+    cursor: pointer;
+    outline: none;
+    user-select: none;
+    transition: background $dur-fast $ease-out, color $dur-fast $ease-out;
+  }
+
+  :global(.filter-menu-item[data-highlighted]) {
+    background: var(--surface-3);
+  }
+
+  :global(.filter-menu-label) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.filter-menu-count) {
+    min-width: 20px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: $radius-pill;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-3);
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: $fw-semibold;
+    font-variant-numeric: tabular-nums;
+  }
+
+  :global(.filter-menu-check) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    opacity: 0;
+  }
+
+  :global(.filter-menu-check.shown) {
+    opacity: 1;
   }
 
   .clear-btn {
@@ -593,50 +794,64 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: $space-1;
+    gap: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: $space-2;
+    padding: 4px 0 8px;
     min-height: 0;
     @include scrollbar;
   }
 
+  .virtual-spacer {
+    width: 1px;
+    flex: 0 0 auto;
+    pointer-events: none;
+  }
+
   .empty {
-    display: grid;
-    place-items: center;
-    gap: $space-2;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: $space-3;
     padding: $space-12 $space-6;
     text-align: center;
     color: var(--text-muted);
   }
 
   .empty-icon {
-    width: 52px;
-    height: 52px;
-    border-radius: $radius-xl;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
     display: grid;
     place-items: center;
     background: var(--surface-3);
+    border: 1px solid var(--border);
     color: var(--text-faint);
-    margin-bottom: $space-1;
   }
 
   .empty h3 {
-    font-size: $fs-base;
+    font-size: $fs-md;
     color: var(--text-strong);
   }
 
   .empty p {
     font-size: $fs-sm;
+    max-width: 280px;
+    line-height: $lh-normal;
   }
 
   .skeleton {
     display: grid;
     gap: $space-2;
-    padding: $space-3 $space-4;
-    border-radius: $radius-md;
+    margin: 3px 8px;
+    padding: 15px 16px;
+    border-radius: $radius-lg;
     border: 1px solid var(--border);
-    background: var(--surface);
+    background: var(--surface-gradient);
+    box-shadow: var(--inner-highlight);
   }
 
   .sk-line,
@@ -680,24 +895,24 @@
     z-index: 70;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
     width: 184px;
     padding: $space-1;
     border-radius: $radius-md;
     background: var(--elevated);
     border: 1px solid var(--border-strong);
-    box-shadow: var(--shadow-lg);
-    animation: menu-in $dur-fast $ease-out;
+    box-shadow: var(--shadow-lg), var(--inner-highlight);
+    animation: menu-in $dur-base $ease-out;
   }
 
   @keyframes menu-in {
     from {
       opacity: 0;
-      transform: translateY(-4px);
+      transform: translateY(-6px) scale(0.97);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateY(0) scale(1);
     }
   }
 
@@ -705,7 +920,7 @@
     display: flex;
     align-items: center;
     gap: $space-2;
-    padding: 7px $space-2;
+    padding: 8px $space-2;
     border: none;
     border-radius: $radius-sm;
     background: transparent;
@@ -748,7 +963,6 @@
   }
 
   @media (max-width: 900px) {
-    .active-capsule,
     .selected-capsule {
       display: none;
     }

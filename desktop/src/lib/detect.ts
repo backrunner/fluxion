@@ -18,11 +18,8 @@ export function detectKind(source: string): DownloadKind | null {
   try {
     const scheme = new URL(value).protocol.replace(':', '').toLowerCase();
     if (scheme === 'http' || scheme === 'https') return 'Http';
-    if (scheme === 'ftp') return 'Ftp';
+    if (scheme === 'ftp' || scheme === 'ftps') return 'Ftp';
     if (scheme === 'sftp') return 'Sftp';
-    // ftps is intentionally not mapped — the submission builder rejects it
-    // with a clear message, so detection returning null keeps the form neutral
-    // and the user sees the validation error on submit rather than a wrong kind.
     return null;
   } catch {
     return null;

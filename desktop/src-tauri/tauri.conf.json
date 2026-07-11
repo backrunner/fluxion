@@ -9,20 +9,28 @@
     "devUrl": "http://localhost:5173",
     "frontendDist": "../dist"
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc1QUU2RjM4MUU0MjQ5N0EKUldSNlNVSWVPRyt1ZFRCMlhMOGVNUTV0THYzaDVpT2hnb0ZJYllSb3E4SE91RC9ZSm9Ma3IrOUMK",
+      "endpoints": [
+        "https://assets.fluxion.alkinum.io/updates/stable/latest.json"
+      ]
+    }
+  },
   "app": {
     "windows": [
       {
         "title": "Fluxion",
-        "width": 1440,
-        "height": 960,
-        "minWidth": 900,
-        "minHeight": 600,
+        "width": 960,
+        "height": 620,
+        "minWidth": 760,
+        "minHeight": 500,
         "resizable": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "trafficLightPosition": {
-          "x": 16,
-          "y": 18
+          "x": 14,
+          "y": 23
         }
       }
     ],
@@ -32,6 +40,7 @@
   },
   "bundle": {
     "active": false,
-    "targets": "all"
+    "targets": "all",
+    "createUpdaterArtifacts": false
   }
 }

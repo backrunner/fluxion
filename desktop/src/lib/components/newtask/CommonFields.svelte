@@ -1,6 +1,7 @@
 <script lang="ts">
   import Field from '../common/Field.svelte';
   import Grid2 from '../common/Grid2.svelte';
+  import { t } from '../../i18n';
 
   // Advanced settings shared across all task kinds: per-task rate limits and
   // the proxy policy. Save directory, filename, and max connections are handled
@@ -11,17 +12,17 @@
 </script>
 
 <Grid2>
-  <Field label="Download limit" hint="bytes/s">
-    <input class="fx-input" bind:value={downloadLimit} inputmode="numeric" placeholder="unlimited" autocomplete="off" />
+  <Field label={$t('settings.downloadLimit')} hint="bytes/s">
+    <input class="fx-input" bind:value={downloadLimit} type="number" min="1" step="1" placeholder={$t('common.unlimited')} autocomplete="off" />
   </Field>
-  <Field label="Upload limit" hint="bytes/s">
-    <input class="fx-input" bind:value={uploadLimit} inputmode="numeric" placeholder="unlimited" autocomplete="off" />
+  <Field label={$t('settings.uploadLimit')} hint="bytes/s">
+    <input class="fx-input" bind:value={uploadLimit} type="number" min="1" step="1" placeholder={$t('common.unlimited')} autocomplete="off" />
   </Field>
 </Grid2>
 
 <label class="toggle">
   <input type="checkbox" bind:checked={useSystemProxy} />
-  <span>Use system proxy</span>
+  <span>{$t('settings.proxy.useSystem')}</span>
 </label>
 
 <style lang="scss">

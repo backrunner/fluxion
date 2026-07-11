@@ -2,6 +2,7 @@
   import { ChevronDown, ChevronRight, Sprout, Layers } from '@lucide/svelte';
   import type { BtStateSnapshot, TaskDetail } from '../../types';
   import { formatBytes, formatSpeed, progressPercent } from '../../format';
+  import { t } from '../../i18n';
 
   export let detail: TaskDetail;
   export let btState: BtStateSnapshot | null;
@@ -39,27 +40,27 @@
     <div class="summary-card" class:seeding={isSeeding}>
       <Sprout size={15} />
       <div class="summary-body">
-        <span class="summary-label">{isSeeding ? 'Seeding' : 'Download / Seed'}</span>
-        <span class="summary-value">{ratio != null ? `${ratio.toFixed(3)} ratio` : '—'}</span>
+        <span class="summary-label">{isSeeding ? $t('state.Seeding') : $t('bt.downloadSeed')}</span>
+        <span class="summary-value">{ratio != null ? $t('bt.ratio', { ratio: ratio.toFixed(3) }) : '-'}</span>
       </div>
     </div>
     <div class="summary-card">
       <Layers size={15} />
       <div class="summary-body">
-        <span class="summary-label">Pieces</span>
-        <span class="summary-value">{btState ? `${haveCount} / ${btState.total_pieces}` : '—'}</span>
+        <span class="summary-label">{$t('bt.pieces')}</span>
+        <span class="summary-value">{btState ? `${haveCount} / ${btState.total_pieces}` : '-'}</span>
       </div>
     </div>
   </div>
 
   {#if !btState}
-    <p class="bt-unavailable">Live BitTorrent state is available while the task is running or seeding.</p>
+    <p class="bt-unavailable">{$t('bt.unavailable')}</p>
   {:else}
     <!-- File list -->
     <div class="collapsible">
       <button class="collapsible-head" on:click={toggleFiles}>
         {#if filesOpen}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
-        <span>Files ({btState.files.length})</span>
+        <span>{$t('bt.files', { count: btState.files.length })}</span>
       </button>
       {#if filesOpen}
         <div class="file-list">
@@ -80,12 +81,12 @@
     <div class="collapsible">
       <button class="collapsible-head" on:click={togglePieces}>
         {#if piecesOpen}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
-        <span>Piece map ({haveCount}/{btState.total_pieces} have)</span>
+        <span>{$t('bt.pieceMap', { have: haveCount, total: btState.total_pieces })}</span>
       </button>
       {#if piecesOpen}
-        <div class="piece-grid" role="img" aria-label="Piece availability map">
+        <div class="piece-grid" role="img" aria-label={$t('bt.pieceMapAria')}>
           {#each pieces as have, i (i)}
-            <span class="piece" class:have title={`Piece ${i}: ${have ? 'have' : 'missing'}`}></span>
+            <span class="piece" class:have title={$t('bt.pieceTitle', { index: i, status: have ? $t('bt.have') : $t('bt.missing') })}></span>
           {/each}
         </div>
       {/if}
@@ -101,10 +102,10 @@
   .bt-summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: $space-2; }
   .summary-card {
     display: flex; align-items: center; gap: $space-2; padding: $space-3;
-    border-radius: $radius-md; background: var(--surface-3); border: 1px solid var(--border);
+    border-radius: $radius-md; background: var(--surface); border: 1px solid var(--border);
     box-shadow: var(--inner-highlight);
     color: var(--text-muted);
-    &.seeding { color: var(--state-good); border-color: rgba(52, 211, 153, 0.32); background: var(--state-good-bg); }
+    &.seeding { color: var(--state-good); border-color: color-mix(in srgb, var(--state-good) 32%, transparent); background: linear-gradient(180deg, var(--state-good-bg), transparent 74%), var(--surface); }
   }
   .summary-body { display: flex; flex-direction: column; gap: 1px; }
   .summary-label { font-size: $fs-xs; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
