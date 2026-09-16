@@ -1,25 +1,26 @@
 <div align="center">
-  <img src="desktop/src-tauri/icons/icon.png" width="136" alt="Fluxion app icon" />
+  <img src="desktop/assets/app/icon.png" width="136" alt="Fluxion app icon" />
 
   <h1>Fluxion</h1>
 
-  <p><strong>A native-feeling, multi-protocol download manager for macOS.</strong></p>
+  <p><strong>A native, multi-protocol download manager for macOS.</strong></p>
 
   <p>
     <img alt="Status: pre-release" src="https://img.shields.io/badge/status-pre--release-D65F3D?style=flat-square" />
     <img alt="Platform: macOS" src="https://img.shields.io/badge/platform-macOS-111212?style=flat-square&logo=apple" />
     <img alt="Rust 1.96" src="https://img.shields.io/badge/Rust-1.96-D65F3D?style=flat-square&logo=rust&logoColor=white" />
-    <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-477F98?style=flat-square&logo=tauri&logoColor=white" />
+    <img alt="GPUI" src="https://img.shields.io/badge/UI-GPUI-D65F3D?style=flat-square" />
     <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-2F9B6A?style=flat-square" /></a>
   </p>
 </div>
 
-Fluxion combines a compact Tauri desktop app, a reusable Rust core, and a daemon-backed CLI. It is designed for long-running transfers that need clear state, predictable resume behavior, per-task controls, and local handling of credentials.
+Fluxion combines a GPU-rendered Rust/GPUI desktop app, a reusable Rust core, and a daemon-backed CLI. It is designed for long-running transfers that need clear state, predictable resume behavior, per-task controls, and local handling of credentials.
 
 > [!IMPORTANT]
 > Fluxion is under active development. Storage formats, command-line flags, and protocol behavior may change before the first stable release.
 
-![Fluxion downloads view](docs/assets/fluxion-app.png)
+The native interface preserves the sidebar, task list and inspector layout, with
+light/dark themes and compact task controls. See [native desktop notes](docs/native-desktop.md).
 
 ## Highlights
 
@@ -46,7 +47,7 @@ Fluxion combines a compact Tauri desktop app, a reusable Rust core, and a daemon
 
 ```mermaid
 flowchart LR
-    App["Svelte desktop UI"] --> Bridge["Tauri command bridge"]
+    App["Native GPUI desktop UI"] --> Bridge["Rust commands + bounded event channel"]
     CLI["fluxion CLI + daemon"] --> Core["Fluxion Core"]
     Bridge --> Core
     Core --> HTTP["HTTP engine"]
@@ -69,7 +70,7 @@ The workspace keeps protocol engines and platform concerns separate:
 | `fluxion-storage` | SQLite persistence and secret-reference handling |
 | `fluxion-platform` | Keychain and operating-system services |
 | `fluxion-runtime` | Production assembly of Core, storage, and engines |
-| `fluxion-tauri-bridge` | Narrow App/Core command and event boundary |
+| `desktop/native/backend.rs` | Native App/Core commands, redacted snapshots, event delivery |
 | `fluxion-cli` | CLI, daemon, Unix-socket IPC, events, and diagnostics |
 
 ## Development
@@ -78,23 +79,25 @@ The workspace keeps protocol engines and platform concerns separate:
 
 - macOS with Xcode Command Line Tools
 - Rust `1.96.0`
-- Node.js `22` and npm
+- Python 3 for macOS app bundling (Node.js is only used by release manifest tooling)
 
 ### Desktop app
 
 ```bash
-cd desktop
-npm ci
-npm run check
-npm run tauri -- dev
+cargo run -p fluxion-app
 ```
 
-For a browser-only UI preview with local sample data:
+Build a standalone native app (all icons and translations are embedded):
 
 ```bash
-cd desktop
-npm run dev
+python3 scripts/bundle-macos.py --release
+open target/native/release/bundle/Fluxion.app
 ```
+
+For isolated manual testing, `python3 scripts/bundle-macos.py --preview` creates
+`target/native/debug/bundle/Fluxion Preview.app` with a separate application identity
+and `/tmp/fluxion-gpui-ui-check` data directory. No browser, dev server or JavaScript
+runtime is used by the desktop app.
 
 ### CLI and daemon
 
@@ -116,11 +119,8 @@ cargo fmt --all -- --check
 cargo check --workspace --all-targets
 cargo test --workspace
 
-cd desktop
-npm run check
-npm run build
+cargo test -p fluxion-app
 
-cd ..
 node --test scripts/release/create-update-manifest.test.mjs
 ```
 
@@ -132,7 +132,7 @@ Please review [SECURITY.md](SECURITY.md) before reporting a vulnerability. Do no
 
 ## Releases
 
-The release workflow builds a signed universal macOS app and DMG, generates Tauri updater artifacts, and publishes immutable versioned files before advancing a channel manifest. Maintainer setup and tag conventions are documented in [docs/releasing.md](docs/releasing.md).
+The release workflow builds a signed universal macOS app and DMG, generates signed native updater archives, and publishes immutable versioned files before advancing a channel manifest. Maintainer setup and tag conventions are documented in [docs/releasing.md](docs/releasing.md).
 
 ## Contributing
 

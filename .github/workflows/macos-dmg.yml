@@ -81,8 +81,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
 
       - name: Set up Rust
         run: |
@@ -95,29 +93,25 @@ jobs:
         with:
           workspaces: '. -> target'
 
-      - name: Install frontend dependencies
-        working-directory: desktop
-        run: npm ci
+      - name: Check native application and core
+        run: |
+          cargo fmt --all -- --check
+          cargo test --workspace
+          node --test scripts/release/create-update-manifest.test.mjs
 
-      - name: Check frontend
-        working-directory: desktop
-        run: npm run check
-
-      - name: Run release manifest tests
-        run: node --test scripts/release/create-update-manifest.test.mjs
-
-      - name: Build signed universal updater bundle and DMG
-        working-directory: desktop
+      - name: Build universal GPUI app and DMG
         env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           VERSION: ${{ steps.release.outputs.version }}
           CHANNEL: ${{ steps.release.outputs.channel }}
         run: |
-          rm -rf ../target/universal-apple-darwin/release/bundle
-          npm run tauri -- build \
-            --target universal-apple-darwin \
-            --bundles app,dmg \
-            --config \
-            '{"version":"${{ steps.release.outputs.version }}","bundle":{"active":true,"createUpdaterArtifacts":true},"plugins":{"updater":{"endpoints":["https://assets.fluxion.alkinum.io/updates/${{ steps.release.outputs.channel }}/latest.json"]}}}'
+          python3 scripts/bundle-macos.py --release --universal --dmg \
+            --version "${VERSION}" --channel "${CHANNEL}"
+
+      - name: Sign update archive with existing release key
+        run: |
+          cargo install tauri-cli --version '^2' --locked
+          cargo tauri signer sign target/universal-apple-darwin/release/bundle/Fluxion.app.tar.gz
 
       - name: Stage release assets and generate updater manifest
         env:

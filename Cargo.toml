@@ -9,9 +9,8 @@ members = [
   "crates/fluxion-sftp",
   "crates/fluxion-bt",
   "crates/fluxion-runtime",
-  "crates/fluxion-tauri-bridge",
   "crates/fluxion-cli",
-  "desktop/src-tauri",
+  "desktop",
 ]
 
 [workspace.package]
@@ -37,12 +36,6 @@ serde_json = "1.0.140"
 sha2 = "0.10.9"
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "sqlite", "chrono", "uuid", "json"] }
 suppaftp = { version = "8.0.4", default-features = false, features = ["tokio"] }
-tauri = { version = "2.0.0", default-features = false, features = ["wry"] }
-tauri-build = "2.0.0"
-tauri-plugin-dialog = "2"
-tauri-plugin-opener = "2"
-tauri-plugin-process = "2"
-tauri-plugin-updater = "2"
 tempfile = "3.20.0"
 thiserror = "2.0.12"
 tokio = { version = "1.45.1", features = ["full"] }

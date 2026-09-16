@@ -1,8 +1,4 @@
 target/
-desktop/dist/
-desktop/node_modules/
-desktop/.svelte-kit/
-desktop/.vite/
 *.log
 .DS_Store
 .fluxion/
@@ -21,7 +17,3 @@ output/
 *.pem
 *.p12
 *.pfx
-
-# npm is the canonical desktop package manager
-desktop/pnpm-lock.yaml
-desktop/pnpm-workspace.yaml
