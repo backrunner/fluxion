@@ -70,7 +70,7 @@ jobs:
           test -s "${bundle}/Fluxion.app.tar.gz"
 
       - name: Upload validation build
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: Fluxion-macos-validation
           path: target/universal-apple-darwin/release/bundle/Fluxion.app.tar.gz
