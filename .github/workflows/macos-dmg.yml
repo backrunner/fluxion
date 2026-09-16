@@ -185,7 +185,7 @@ jobs:
         run: bash scripts/release/upload-r2.sh
 
       - name: Upload GitHub Actions artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: Fluxion-macos-${{ steps.release.outputs.channel }}-${{ steps.release.outputs.version }}
           path: ${{ env.ASSETS_DIR }}
