@@ -38,6 +38,6 @@ test('rejects a release without a signed updater archive', () => {
       baseUrl: 'https://assets.fluxion.alkinum.io',
       artifactsDir: root
     }),
-    /No Tauri updater archive/
+    /No native updater archive/
   );
 });

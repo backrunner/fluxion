@@ -51,7 +51,7 @@ export function createManifest({ channel, version, baseUrl, artifactsDir, notes,
 
   const files = walkFiles(root);
   const updateArchive = files.find((file) => file.endsWith('.app.tar.gz'));
-  if (!updateArchive) throw new Error('No Tauri updater archive (*.app.tar.gz) found');
+  if (!updateArchive) throw new Error('No native updater archive (*.app.tar.gz) found');
   const signature = `${updateArchive}.sig`;
   if (!existsSync(signature)) throw new Error(`Missing updater signature: ${relative(root, signature)}`);
 
