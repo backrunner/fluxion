@@ -25,10 +25,10 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -64,7 +64,7 @@ jobs:
       - name: Verify packaged application
         run: |
           bundle=target/universal-apple-darwin/release/bundle
-          lipo -verify_arch arm64 x86_64 "${bundle}/Fluxion.app/Contents/MacOS/fluxion-app"
+          lipo "${bundle}/Fluxion.app/Contents/MacOS/fluxion-app" -verify_arch arm64 x86_64
           codesign --verify --deep --strict "${bundle}/Fluxion.app"
           hdiutil verify "${bundle}/Fluxion_0.1.0_universal.dmg"
           test -s "${bundle}/Fluxion.app.tar.gz"
