@@ -14,7 +14,6 @@ pub const VERSION: &str = match option_env!("FLUXION_VERSION") {
     Some(v) => v,
     None => env!("CARGO_PKG_VERSION"),
 };
-pub const CHECK_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

@@ -79,27 +79,6 @@ impl Workspace {
                 }
             })
             .detach();
-            cx.spawn_in(window, async move |view, cx| {
-                loop {
-                    cx.background_executor()
-                        .timer(crate::updater::CHECK_INTERVAL)
-                        .await;
-                    if view
-                        .update_in(cx, |this, _, cx| {
-                            if this.preferences.auto_check_updates
-                                && !this.update_status.busy()
-                                && this.update_prepared.is_none()
-                            {
-                                this.check_for_updates(false, cx);
-                            }
-                        })
-                        .is_err()
-                    {
-                        break;
-                    }
-                }
-            })
-            .detach();
         });
         let subscriptions = vec![
             cx.subscribe(&search, |_, _, event, cx| {
@@ -1098,7 +1077,56 @@ mod tests {
         );
     }
     #[gpui::test]
-    fn channel_switch_ignores_stale_results_and_background_checks_obey_preferences(
+    fn startup_checks_once_and_manual_checks_remain_available(cx: &mut gpui::TestAppContext) {
+        use super::{Channel, Command};
+        cx.update(gpui_component::init);
+        for channel in [Channel::Stable, Channel::Beta] {
+            let (commands, rx) = async_channel::bounded(32);
+            let (_tx, messages) = async_channel::bounded(32);
+            let (_done, stopped) = async_channel::bounded(1);
+            let mut view = None;
+            let _window = cx.add_window(|window, cx| {
+                let workspace = cx.new(|cx| {
+                    Workspace::new(
+                        Backend {
+                            commands,
+                            messages,
+                            stopped,
+                        },
+                        Preferences {
+                            update_channel: channel,
+                            auto_check_updates: true,
+                            ..Default::default()
+                        },
+                        window,
+                        cx,
+                    )
+                });
+                view = Some(workspace.clone());
+                Root::new(workspace, window, cx)
+            });
+            cx.run_until_parked();
+            assert!(matches!(
+                rx.try_recv().unwrap(),
+                Command::CheckUpdate(selected, false) if selected == channel
+            ));
+            cx.executor()
+                .advance_clock(std::time::Duration::from_secs(24 * 60 * 60));
+            cx.run_until_parked();
+            assert!(rx.try_recv().is_err(), "startup checks must not repeat");
+            view.unwrap().update(cx, |view, cx| {
+                view.preferences.auto_check_updates = false;
+                view.check_for_updates(true, cx);
+            });
+            assert!(matches!(
+                rx.try_recv().unwrap(),
+                Command::CheckUpdate(selected, true) if selected == channel
+            ));
+            assert!(rx.try_recv().is_err());
+        }
+    }
+    #[gpui::test]
+    fn channel_switch_ignores_stale_results_and_checks_do_not_repeat(
         cx: &mut gpui::TestAppContext,
     ) {
         use super::{Channel, Command, UpdateStatus};
@@ -1161,19 +1189,13 @@ mod tests {
             rx.try_recv().unwrap(),
             Command::CheckUpdate(Channel::Beta, true)
         ));
-        cx.executor().advance_clock(crate::updater::CHECK_INTERVAL);
+        cx.executor()
+            .advance_clock(std::time::Duration::from_secs(24 * 60 * 60));
         cx.run_until_parked();
-        assert!(matches!(
-            rx.try_recv().unwrap(),
-            Command::CheckUpdate(Channel::Beta, false)
-        ));
-        view.update(cx, |view, _| {
-            view.preferences.auto_check_updates = false;
-            view.update_status = UpdateStatus::Idle;
-        });
-        cx.executor().advance_clock(crate::updater::CHECK_INTERVAL);
-        cx.run_until_parked();
-        assert!(rx.try_recv().is_err());
+        assert!(
+            rx.try_recv().is_err(),
+            "leaving the app running must not schedule update checks"
+        );
         // Exercise the settings composition with real GPUI layout, including
         // narrow windows and long localized controls. This is not a screenshot test.
         let visual = gpui::VisualTestContext::from_window(*window, cx);
