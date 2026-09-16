@@ -9,8 +9,10 @@ and Beta feeds at `https://assets.fluxion.alkinum.io`.
 - Beta tags: `v1.2.3-beta.4`; only `-beta.N` releases enter the Beta feed.
 - Settings stores the selected channel and automatic-check preference in
   `native-ui.json`. A new installation defaults to its build channel.
-- Automatic checks run at launch and every six hours. Checks never interrupt a
-  transfer or open a modal. Available updates appear in the sidebar and Settings.
+- When enabled, automatic checks run once at launch. There is no periodic update
+  task. Manual checks and channel changes also check for updates. Checks never
+  interrupt a transfer or open a modal. Available updates appear in the sidebar
+  and Settings.
 - Beta users receive the newest eligible Beta or Stable release. A final release
   supersedes its beta. Switching to Stable never downgrades; the app waits for a
   newer final release. Equal versions and build-metadata-only changes are ignored.
@@ -97,6 +99,12 @@ choosing installation or the user changes channels.
 
 ## Verification
 
+The `CI` workflow runs on pushes to `main`, pull requests and manual dispatch.
+It checks formatting, tests the workspace and release scripts, builds an ARM64 +
+Intel universal app and DMG, and verifies the bundle signature and disk image.
+Validation builds use ad-hoc signatures and never publish to the update feeds.
+They require no release secrets. Neither workflow has a scheduled trigger.
+
 ```sh
 cargo test --workspace --locked
 node --test scripts/release/*.test.mjs
@@ -105,8 +113,8 @@ python3 scripts/bundle-macos.py --preview
 ```
 
 Tests cover channel isolation and promotion, no downgrade, stale check results,
-periodic preferences, signature validity/tampering, archive restrictions, staged
-bundle changes, manifest validation, monotonic publishing, replacement/launch
+startup preferences, absence of periodic checks, signature validity/tampering,
+archive restrictions, staged bundle changes, manifest validation, monotonic publishing, replacement/launch
 rollback and exit timeout. Helper tests use temporary applications and a mock
 launcher; they do not install a real release. A live, Developer ID signed update
 and Gatekeeper check still require configured release credentials and a published

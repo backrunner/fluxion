@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+
+jobs:
+  macos:
+    name: macOS tests and universal app
+    runs-on: macos-14
+    timeout-minutes: 90
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Rust
+        run: |
+          rustup toolchain install 1.96.0 --profile minimal --component rustfmt
+          rustup default 1.96.0
+          rustup target add --toolchain 1.96.0 aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+          cache-on-failure: true
+
+      - name: Check formatting and release scripts
+        run: |
+          cargo fmt --all -- --check
+          node --test scripts/release/*.test.mjs
+          python3 -m unittest discover -s scripts/release -p 'test_*.py'
+          sh -n desktop/native/install-update.sh
+          bash -n scripts/release/upload-r2.sh
+
+      - name: Test native application and core
+        run: |
+          host="$(rustc -vV | sed -n 's/^host: //p')"
+          cargo test --workspace --locked --release --target "${host}"
+
+      - name: Build universal app and DMG
+        # Ad-hoc signing exercises packaging without publishing or release credentials.
+        run: python3 scripts/bundle-macos.py --release --universal --dmg
+
+      - name: Verify packaged application
+        run: |
+          bundle=target/universal-apple-darwin/release/bundle
+          lipo -verify_arch arm64 x86_64 "${bundle}/Fluxion.app/Contents/MacOS/fluxion-app"
+          codesign --verify --deep --strict "${bundle}/Fluxion.app"
+          hdiutil verify "${bundle}/Fluxion_0.1.0_universal.dmg"
+          test -s "${bundle}/Fluxion.app.tar.gz"
+
+      - name: Upload validation build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fluxion-macos-validation
+          path: target/universal-apple-darwin/release/bundle/Fluxion.app.tar.gz
+          if-no-files-found: error
+          retention-days: 7

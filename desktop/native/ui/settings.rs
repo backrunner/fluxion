@@ -124,14 +124,11 @@ impl Workspace {
             )
             .child(preference_row(
                 self.tr("native.autoUpdates"),
-                Switch::new("automatic-update-checks")
+                Switch::new("startup-update-checks")
                     .checked(self.preferences.auto_check_updates)
                     .on_click(cx.listener(|this, value, _, cx| {
                         this.preferences.auto_check_updates = *value;
                         this.persist(cx);
-                        if *value {
-                            this.check_for_updates(false, cx);
-                        }
                     })),
             ))
             .child(
