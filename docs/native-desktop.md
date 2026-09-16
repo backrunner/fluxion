@@ -13,7 +13,7 @@ removed. The navigation / task list / inspector structure is preserved.
 - `desktop/native/backend.rs`: bounded command/event channels and asynchronous
   calls into Fluxion Core. Filesystem and network operations run on Tokio.
 - `desktop/native/model.rs`: event reduction, filtering, formatting and UI preferences.
-- `desktop/native/updater.rs`: compatible signed native updates.
+- `desktop/native/updater.rs`: channel selection, signed downloads, staged installation and restart.
 - `desktop/assets`: embedded Lucide SVGs, app icons and four language dictionaries.
 
 The UI does not import protocol engines. Progress uses Core events; snapshots load
@@ -53,7 +53,8 @@ sidebar and close control remaining available.
 cargo fmt --all -- --check
 cargo check --workspace --all-targets
 cargo test --workspace
-node --test scripts/release/create-update-manifest.test.mjs
+node --test scripts/release/*.test.mjs
+python3 -m unittest discover -s scripts/release -p 'test_*.py'
 python3 scripts/bundle-macos.py --preview
 ```
 
@@ -80,3 +81,22 @@ control was verified to return to the list.
 The workspace test run passed 53 tests; release-manifest tests passed 2 tests.
 Live BT/FTP/SFTP transfers and signed update installation were not manually
 exercised. Universal release signing and notarization require the release host.
+
+## Interface conventions
+
+Keep the three-pane workspace, 84 px task rows, 20 px action glyphs and compact
+32–36 px controls. Use spacing and a small number of tonal surfaces to separate
+navigation, list and inspector. Avoid repeated nested cards, decorative icon
+badges, oversized empty states and numerical columns that displace filenames.
+Progress belongs to task information; actions form a separate group. Detail
+actions stay in the header while the body scrolls. Copy controls sit beside the
+information they copy. Settings uses one scroll container and clearly separates
+immediate UI/update preferences from explicitly saved transfer settings. Keep
+units with field labels. Destructive confirmation titles remain short; selected
+counts belong in their bodies.
+
+Software updates are described in [releasing.md](releasing.md). The new update
+controls and this interface revision passed native render/state tests, but the
+computer-use tool reported `cgWindowNotFound` during the latest visual pass.
+Earlier manual verification above applies to the migration baseline, not a
+complete visual sign-off of this revision.

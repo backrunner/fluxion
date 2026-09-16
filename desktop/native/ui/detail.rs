@@ -7,7 +7,7 @@ impl Workspace {
             return v_flex()
                 .h_full()
                 .flex_1()
-                .rounded_2xl()
+                .rounded_xl()
                 .overflow_hidden()
                 .bg(surface)
                 .child(empty(
@@ -29,26 +29,24 @@ impl Workspace {
             .clone()
             .unwrap_or_else(|| self.tr("new.resolving"));
         let mut body = v_flex()
-            .px_7()
+            .px_6()
             .pt_3()
-            .pb_7()
-            .gap_7()
+            .pb_6()
+            .gap_6()
             .child(
                 h_flex()
                     .gap_4()
                     .child(
                         div()
-                            .size(px(56.))
+                            .size(px(36.))
                             .flex_shrink_0()
-                            .rounded_xl()
-                            .bg(cx.theme().primary.opacity(0.10))
                             .flex()
                             .items_center()
                             .justify_center()
                             .child(
                                 icon_view(file_icon(&name))
                                     .size(px(28.))
-                                    .text_color(cx.theme().primary),
+                                    .text_color(cx.theme().muted_foreground),
                             ),
                     )
                     .child(
@@ -57,7 +55,7 @@ impl Workspace {
                             .gap_2()
                             .child(
                                 div()
-                                    .text_xl()
+                                    .text_size(px(18.))
                                     .font_semibold()
                                     .line_height(relative(1.25))
                                     .child(name),
@@ -87,7 +85,7 @@ impl Workspace {
                             .justify_between()
                             .child(
                                 div()
-                                    .text_3xl()
+                                    .text_size(px(24.))
                                     .font_semibold()
                                     .child(format!("{:.1}%", progress * 100.)),
                             )
@@ -120,7 +118,8 @@ impl Workspace {
             .child(
                 h_flex()
                     .gap_4()
-                    .p_4()
+                    .px_4()
+                    .py_3()
                     .rounded_lg()
                     .bg(inset_color(cx))
                     .child(metric(self.tr("detail.downSpeed"), speed(rate.0), cx))
@@ -260,13 +259,32 @@ impl Workspace {
                     task.save_dir.to_string_lossy().into_owned(),
                     cx,
                 ))
-                .child(info(self.tr("new.link"), source.clone(), cx))
                 .child(
-                    self.action_button("copy-source", "copy", "native.copySource")
-                        .ghost()
-                        .on_click(move |_, _, cx| {
-                            cx.write_to_clipboard(ClipboardItem::new_string(source.clone()))
-                        }),
+                    v_flex()
+                        .gap_1()
+                        .child(
+                            h_flex()
+                                .justify_between()
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(cx.theme().muted_foreground)
+                                        .child(self.tr("new.link")),
+                                )
+                                .child(
+                                    self.icon_button("copy-source", "copy", "native.copySource")
+                                        .size(px(28.))
+                                        .on_click({
+                                            let source = source.clone();
+                                            move |_, _, cx| {
+                                                cx.write_to_clipboard(ClipboardItem::new_string(
+                                                    source.clone(),
+                                                ))
+                                            }
+                                        }),
+                                ),
+                        )
+                        .child(div().text_sm().overflow_hidden().child(source)),
                 )
                 .child(info(
                     self.tr("detail.created"),
@@ -422,14 +440,14 @@ impl Workspace {
             .h_full()
             .min_w_0()
             .flex_1()
-            .rounded_2xl()
+            .rounded_xl()
             .overflow_hidden()
             .bg(surface)
             .child(
                 h_flex()
-                    .h(px(72.))
+                    .h(px(60.))
                     .flex_shrink_0()
-                    .px_7()
+                    .px_6()
                     .gap_3()
                     .child(
                         div()

@@ -200,10 +200,15 @@ impl Form {
                     .text_color(cx.theme().muted_foreground)
                     .child(t(&self.locale, label)),
             )
-            .child(Input::new(&self.inputs[key]).disabled(self.busy).when(
-                matches!(key, "headers" | "trackers" | "allow" | "deny"),
-                |input| input.h(px(88.)),
-            ))
+            .child(
+                Input::new(&self.inputs[key])
+                    .h(px(32.))
+                    .disabled(self.busy)
+                    .when(
+                        matches!(key, "headers" | "trackers" | "allow" | "deny"),
+                        |input| input.h(px(88.)),
+                    ),
+            )
             .into_any_element()
     }
     fn pick(&mut self, folder: bool, window: &mut Window, cx: &mut Context<Self>) {
@@ -649,18 +654,20 @@ impl Render for Form {
                 body = body.child(files);
             }
             body = body.child(
-                Button::new("advanced")
-                    .ghost()
-                    .icon(if self.advanced {
-                        IconName::ChevronDown
-                    } else {
-                        IconName::ChevronRight
-                    })
-                    .label(t(&self.locale, "new.advanced"))
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.advanced = !this.advanced;
-                        cx.notify();
-                    })),
+                h_flex().child(
+                    Button::new("advanced")
+                        .ghost()
+                        .icon(if self.advanced {
+                            IconName::ChevronDown
+                        } else {
+                            IconName::ChevronRight
+                        })
+                        .label(t(&self.locale, "new.advanced"))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.advanced = !this.advanced;
+                            cx.notify();
+                        })),
+                ),
             );
         }
         if !creating || self.advanced {
@@ -705,32 +712,19 @@ impl Render for Form {
                 }
             }
             if settings {
-                body = body
-                    .child(
-                        div()
-                            .font_semibold()
-                            .child(t(&self.locale, "settings.transfer.title")),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(t(&self.locale, "settings.transfer.copy")),
-                    );
-            }
-            body = body
-                .child(
-                    h_flex()
-                        .gap_3()
-                        .child(self.field("down", "detail.downloadLimit", cx))
-                        .child(self.field("up", "detail.uploadLimit", cx)),
-                )
-                .child(
+                body = body.child(
                     div()
-                        .text_xs()
-                        .text_color(cx.theme().muted_foreground)
-                        .child("KB/s"),
+                        .text_size(px(13.))
+                        .font_semibold()
+                        .child(t(&self.locale, "settings.transfer.title")),
                 );
+            }
+            body = body.child(
+                h_flex()
+                    .gap_3()
+                    .child(self.field("down", "native.downloadLimitUnit", cx))
+                    .child(self.field("up", "native.uploadLimitUnit", cx)),
+            );
             if creating || settings {
                 body = body.child(
                     Switch::new("proxy")
@@ -748,6 +742,7 @@ impl Render for Form {
                     .child(
                         div()
                             .mt_4()
+                            .text_size(px(13.))
                             .font_semibold()
                             .child(t(&self.locale, "settings.bt.title")),
                     )
@@ -765,17 +760,21 @@ impl Render for Form {
         } else {
             window.viewport_size().height - px(245.)
         };
+        let content = if settings {
+            body.into_any_element()
+        } else {
+            div()
+                .id("form-scroll")
+                .max_h(height.max(px(180.)))
+                .overflow_y_scroll()
+                .pr_2()
+                .child(body)
+                .into_any_element()
+        };
         v_flex()
             .w_full()
             .gap_4()
-            .child(
-                div()
-                    .id("form-scroll")
-                    .max_h(height.max(px(180.)))
-                    .overflow_y_scroll()
-                    .pr_2()
-                    .child(body),
-            )
+            .child(content)
             .when(!self.error.is_empty(), |view| {
                 view.child(
                     div()
@@ -790,6 +789,7 @@ impl Render for Form {
             .child(
                 h_flex()
                     .justify_end()
+                    .when(settings, |row| row.justify_start())
                     .gap_2()
                     .pt_3()
                     .when(!settings, |row| {
@@ -809,6 +809,8 @@ impl Render for Form {
                                     "common.saving"
                                 } else if creating {
                                     "new.create"
+                                } else if settings {
+                                    "native.saveTransferSettings"
                                 } else {
                                     "common.save"
                                 },

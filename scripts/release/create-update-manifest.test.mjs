@@ -41,3 +41,17 @@ test('rejects a release without a signed updater archive', () => {
     /No native updater archive/
   );
 });
+
+
+test('rejects channel/version mismatches, malformed versions and untrusted origins', () => {
+  for (const [channel, version] of [['stable', '1.2.3-beta.1'], ['beta', '1.2.3'], ['stable', '01.2.3'], ['beta', '1.2.3-beta.01'], ['beta', '1.2.3-rc.1']]) {
+    assert.throws(() => createManifest({ channel, version, baseUrl: 'https://assets.fluxion.alkinum.io', artifactsDir: tmpdir() }));
+  }
+  assert.throws(() => createManifest({ channel: 'stable', version: '1.2.3', baseUrl: 'https://example.com', artifactsDir: tmpdir() }), /origin/);
+});
+
+test('does not pick an arbitrary archive when multiple bundles are present', () => {
+  const root = mkdtempSync(join(tmpdir(), 'fluxion-manifest-'));
+  for (const name of ['Fluxion.app.tar.gz', 'Old.app.tar.gz']) writeFileSync(join(root, name), 'archive');
+  assert.throws(() => createManifest({ channel: 'stable', version: '1.2.3', baseUrl: 'https://assets.fluxion.alkinum.io', artifactsDir: root }), /exactly one/);
+});

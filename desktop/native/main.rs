@@ -175,8 +175,8 @@ pub fn apply_theme(appearance: &str, window: Option<&mut Window>, cx: &mut App) 
     let dark = Theme::global(cx).is_dark();
     let theme = Theme::global_mut(cx);
     theme.font_size = px(16.);
-    theme.radius = px(10.);
-    theme.radius_lg = px(18.);
+    theme.radius = px(8.);
+    theme.radius_lg = px(12.);
     theme.shadow = false;
     theme.primary = rgb(if dark { 0xf5a17c } else { 0xb74e2d }).into();
     theme.primary_hover = rgb(if dark { 0xffb597 } else { 0xa44021 }).into();

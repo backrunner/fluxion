@@ -20,6 +20,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: fluxion-macos-release
+  cancel-in-progress: false
+
 env:
   CI: true
   CARGO_TERM_COLOR: always
@@ -32,14 +36,37 @@ jobs:
     name: Build and publish macOS ${{ inputs.channel || 'tagged' }} release
     runs-on: macos-14
     timeout-minutes: 60
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Require release credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          python3 - <<'PY'
+          import os
+          required = ['APPLE_CERTIFICATE', 'APPLE_CERTIFICATE_PASSWORD', 'APPLE_SIGNING_IDENTITY',
+                      'APPLE_API_KEY', 'APPLE_API_KEY_ID', 'APPLE_API_ISSUER',
+                      'TAURI_SIGNING_PRIVATE_KEY', 'CLOUDFLARE_API_TOKEN']
+          missing = [key for key in required if not os.environ.get(key)]
+          if missing:
+              raise SystemExit('Missing release secrets: ' + ', '.join(missing))
+          PY
+
+      - name: Import Developer ID certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          keychain: fluxion-release
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
       - name: Resolve release channel and version
         id: release
@@ -97,18 +124,32 @@ jobs:
         run: |
           cargo fmt --all -- --check
           cargo test --workspace
-          node --test scripts/release/create-update-manifest.test.mjs
+          node --test scripts/release/*.test.mjs
+          python3 -m unittest discover -s scripts/release -p 'test_*.py'
+
+      - name: Check release version has not already been published
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          CHANNEL: ${{ steps.release.outputs.channel }}
+        run: node scripts/release/assert-channel-advance.mjs --channel "${CHANNEL}" --version "${VERSION}"
 
       - name: Build universal GPUI app and DMG
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           VERSION: ${{ steps.release.outputs.version }}
           CHANNEL: ${{ steps.release.outputs.channel }}
         run: |
-          python3 scripts/bundle-macos.py --release --universal --dmg \
+          rm -rf target/universal-apple-darwin/release/bundle
+          python3 scripts/bundle-macos.py --release --universal --dmg --notarize \
             --version "${VERSION}" --channel "${CHANNEL}"
 
       - name: Sign update archive with existing release key
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           cargo install tauri-cli --version '^2' --locked
           cargo tauri signer sign target/universal-apple-darwin/release/bundle/Fluxion.app.tar.gz
@@ -138,6 +179,7 @@ jobs:
 
       - name: Upload release assets to Cloudflare R2
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CHANNEL: ${{ steps.release.outputs.channel }}
           VERSION: ${{ steps.release.outputs.version }}
         run: bash scripts/release/upload-r2.sh

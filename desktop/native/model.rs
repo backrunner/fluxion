@@ -12,6 +12,8 @@ pub struct Preferences {
     pub appearance: String,
     pub trash: BTreeSet<TaskId>,
     pub detail_open: bool,
+    pub update_channel: crate::updater::Channel,
+    pub auto_check_updates: bool,
 }
 impl Default for Preferences {
     fn default() -> Self {
@@ -20,6 +22,8 @@ impl Default for Preferences {
             appearance: "system".into(),
             trash: BTreeSet::new(),
             detail_open: true,
+            update_channel: Default::default(),
+            auto_check_updates: true,
         }
     }
 }

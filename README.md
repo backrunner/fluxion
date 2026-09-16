@@ -121,7 +121,8 @@ cargo test --workspace
 
 cargo test -p fluxion-app
 
-node --test scripts/release/create-update-manifest.test.mjs
+node --test scripts/release/*.test.mjs
+python3 -m unittest discover -s scripts/release -p 'test_*.py'
 ```
 
 ## Security And Privacy
