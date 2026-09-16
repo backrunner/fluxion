@@ -7,6 +7,7 @@ set -euo pipefail
 : "${ASSETS_DIR:?ASSETS_DIR is required}"
 
 command -v npx >/dev/null 2>&1 || { echo 'npx is required' >&2; exit 1; }
+node scripts/release/assert-channel-advance.mjs --channel "${CHANNEL}" --version "${VERSION}" --artifacts-dir "${ASSETS_DIR}"
 
 for file in "${ASSETS_DIR}"/*; do
   [ -f "${file}" ] || continue

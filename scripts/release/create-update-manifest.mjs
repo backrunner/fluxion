@@ -42,15 +42,15 @@ function urlPathSegment(value) {
 }
 
 export function createManifest({ channel, version, baseUrl, artifactsDir, notes, pubDate }) {
-  if (!/^(stable|beta)$/.test(channel)) throw new Error(`Unsupported channel: ${channel}`);
-  if (!/^\d+\.\d+\.\d+(?:-beta\.\d+)?$/.test(version)) {
-    throw new Error(`Invalid version: ${version}`);
-  }
+  validateRelease(channel, version);
+  if (baseUrl.replace(/\/$/, '') !== 'https://assets.fluxion.alkinum.io') throw new Error('Unexpected update origin');
   const root = resolve(artifactsDir);
   if (!existsSync(root)) throw new Error(`Artifacts directory does not exist: ${root}`);
 
   const files = walkFiles(root);
-  const updateArchive = files.find((file) => file.endsWith('.app.tar.gz'));
+  const archives = files.filter((file) => file.endsWith('.app.tar.gz'));
+  if (archives.length > 1) throw new Error('Expected exactly one universal update archive');
+  const updateArchive = archives[0];
   if (!updateArchive) throw new Error('No native updater archive (*.app.tar.gz) found');
   const signature = `${updateArchive}.sig`;
   if (!existsSync(signature)) throw new Error(`Missing updater signature: ${relative(root, signature)}`);
@@ -67,6 +67,7 @@ export function createManifest({ channel, version, baseUrl, artifactsDir, notes,
   };
 
   return {
+    channel,
     version,
     notes: notes ?? `Fluxion ${version} (${channel})`,
     pub_date: pubDate ?? new Date().toISOString(),
@@ -75,6 +76,13 @@ export function createManifest({ channel, version, baseUrl, artifactsDir, notes,
       'darwin-x86_64': platform
     }
   };
+}
+
+export function validateRelease(channel, version) {
+  if (!/^(stable|beta)$/.test(channel)) throw new Error(`Unsupported channel: ${channel}`);
+  const n = '(0|[1-9][0-9]*)';
+  if (!new RegExp(`^${n}\\.${n}\\.${n}(?:-beta\\.${n})?$`).test(version)) throw new Error(`Invalid version: ${version}`);
+  if ((channel === 'beta') !== version.includes('-beta.')) throw new Error('Release channel does not match version');
 }
 
 function main() {

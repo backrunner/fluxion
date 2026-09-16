@@ -7,6 +7,7 @@ use crate::{
     form::{Form, FormEvent, FormKind, limit_text},
     i18n::t,
     model::*,
+    updater::{Channel, PreparedUpdate, Status as UpdateStatus},
 };
 use fluxion_core::*;
 use gpui::{prelude::*, *};
@@ -37,8 +38,9 @@ pub struct Workspace {
     focus: FocusHandle,
     sort: u8,
     update: Option<crate::updater::Release>,
-    update_busy: bool,
-    update_status: String,
+    update_status: UpdateStatus,
+    update_prepared: Option<PreparedUpdate>,
+    update_checked_at: Option<chrono::DateTime<chrono::Local>>,
     loading: bool,
     busy: bool,
     error: String,
@@ -59,13 +61,38 @@ impl Workspace {
         let search = cx.new(|cx| {
             InputState::new(window, cx).placeholder(t(&preferences.locale, "list.search"))
         });
-        let _ = backend.commands.try_send(Command::CheckUpdate(false));
+        if preferences.auto_check_updates {
+            let _ = backend
+                .commands
+                .try_send(Command::CheckUpdate(preferences.update_channel, false));
+        }
         let messages = backend.messages.clone();
         cx.defer_in(window, move |_, window, cx| {
             cx.spawn_in(window, async move |view, cx| {
                 while let Ok(message) = messages.recv().await {
                     if view
                         .update_in(cx, |this, window, cx| this.receive(message, window, cx))
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+            })
+            .detach();
+            cx.spawn_in(window, async move |view, cx| {
+                loop {
+                    cx.background_executor()
+                        .timer(crate::updater::CHECK_INTERVAL)
+                        .await;
+                    if view
+                        .update_in(cx, |this, _, cx| {
+                            if this.preferences.auto_check_updates
+                                && !this.update_status.busy()
+                                && this.update_prepared.is_none()
+                            {
+                                this.check_for_updates(false, cx);
+                            }
+                        })
                         .is_err()
                     {
                         break;
@@ -89,6 +116,11 @@ impl Workspace {
         ];
         let focus = cx.focus_handle();
         window.focus(&focus);
+        let update_status = if std::env::args().any(|arg| arg == "--fluxion-update-failed") {
+            UpdateStatus::Error(t(&preferences.locale, "native.updateRolledBack"))
+        } else {
+            UpdateStatus::Idle
+        };
         Self {
             backend,
             store: Default::default(),
@@ -104,8 +136,9 @@ impl Workspace {
             focus,
             sort: 0,
             update: None,
-            update_busy: false,
-            update_status: String::new(),
+            update_status,
+            update_prepared: None,
+            update_checked_at: None,
             loading: true,
             busy: false,
             error: String::new(),
@@ -129,7 +162,7 @@ impl Workspace {
         if self.backend.commands.try_send(command).is_err() {
             self.error = self.tr("native.unavailable");
             self.busy = false;
-            self.update_busy = false;
+            self.update_status = UpdateStatus::Error(self.tr("native.unavailable"));
             for form in [&self.form, &self.settings_form].into_iter().flatten() {
                 form.update(cx, |form, cx| {
                     form.busy = false;
@@ -142,40 +175,67 @@ impl Workspace {
     fn persist(&mut self, cx: &mut Context<Self>) {
         self.send(Command::Preferences(self.preferences.clone()), cx);
     }
+    fn check_for_updates(&mut self, manual: bool, cx: &mut Context<Self>) {
+        if self.update_status.installing() || self.update_prepared.is_some() {
+            return;
+        }
+        self.update_status = UpdateStatus::Checking;
+        self.send(
+            Command::CheckUpdate(self.preferences.update_channel, manual),
+            cx,
+        );
+    }
+    fn change_update_channel(&mut self, channel: Channel, cx: &mut Context<Self>) {
+        if self.update_status.installing() || self.preferences.update_channel == channel {
+            return;
+        }
+        self.preferences.update_channel = channel;
+        self.update = None;
+        self.update_prepared = None;
+        self.update_checked_at = None;
+        self.persist(cx);
+        self.check_for_updates(true, cx);
+    }
     fn receive(&mut self, message: Message, window: &mut Window, cx: &mut Context<Self>) {
         match message {
-            Message::UpdateChecked(manual, result) => {
-                self.update_busy = false;
+            Message::UpdateChecked(channel, manual, result) => {
+                if channel != self.preferences.update_channel
+                    || self.update_status.installing()
+                    || self.update_prepared.is_some()
+                {
+                    return;
+                }
                 match result {
                     Ok(release) => {
                         self.update = release;
-                        self.update_status = if let Some(release) = &self.update {
-                            self.tr("settings.update.available")
-                                .replace("{version}", &release.version)
-                        } else if manual {
-                            self.tr("settings.update.current")
+                        self.update_checked_at = Some(chrono::Local::now());
+                        self.update_status = if self.update.is_some() {
+                            UpdateStatus::Available
                         } else {
-                            String::new()
+                            UpdateStatus::Current
                         };
                     }
-                    Err(error) => {
-                        if manual {
-                            self.update_status = error;
-                        }
+                    Err(_) => {
+                        self.update_status = if manual {
+                            UpdateStatus::Error(self.tr("native.updateCheckFailed"))
+                        } else if self.update.is_some() {
+                            UpdateStatus::Available
+                        } else {
+                            UpdateStatus::Idle
+                        };
                     }
                 }
             }
             Message::UpdateProgress(done, total) => {
-                self.update_status = format!(
-                    "{} · {} / {}",
-                    self.tr("update.downloading"),
-                    bytes(Some(done)),
-                    bytes(total)
-                )
+                self.update_status = UpdateStatus::Downloading(done, total);
+            }
+            Message::UpdateVerifying => self.update_status = UpdateStatus::Verifying,
+            Message::UpdateReady(prepared) => {
+                self.update_status = UpdateStatus::Ready;
+                self.update_prepared = Some(prepared);
             }
             Message::UpdateError(error) => {
-                self.update_busy = false;
-                self.update_status = error;
+                self.update_status = UpdateStatus::Error(error);
             }
             Message::Restart => crate::request_shutdown(cx),
             Message::Snapshot(tasks, settings) => {
@@ -748,7 +808,7 @@ impl Render for Workspace {
                             .bottom_3()
                             .left(px(208.))
                             .right_3()
-                            .rounded_2xl()
+                            .rounded_xl()
                             .bg(cx.theme().background)
                             .shadow_lg()
                             .child(self.detail_pane(cx)),
@@ -847,7 +907,7 @@ fn state_color(state: &TaskState, cx: &App) -> Hsla {
         })
         .into(),
         TaskState::Failed => cx.theme().danger,
-        TaskState::Queued | TaskState::Resolving | TaskState::Verifying => cx.theme().primary,
+        TaskState::Resolving | TaskState::Verifying => cx.theme().primary,
         _ => cx.theme().muted_foreground,
     }
 }
@@ -882,7 +942,7 @@ fn metric(label: String, value: String, cx: &App) -> Div {
 }
 fn section(label: String, cx: &App) -> Div {
     div()
-        .text_xs()
+        .text_size(px(13.))
         .font_semibold()
         .text_color(cx.theme().muted_foreground)
         .child(label)
@@ -907,18 +967,9 @@ fn empty(icon: &str, title: String, copy: String, cx: &App) -> AnyElement {
         .px_8()
         .gap_3()
         .child(
-            div()
-                .size(px(64.))
-                .rounded_2xl()
-                .bg(inset_color(cx))
-                .flex()
-                .items_center()
-                .justify_center()
-                .child(
-                    icon_view(icon)
-                        .size(px(26.))
-                        .text_color(cx.theme().muted_foreground),
-                ),
+            icon_view(icon)
+                .size(px(28.))
+                .text_color(cx.theme().muted_foreground),
         )
         .child(
             div()
@@ -1045,5 +1096,113 @@ mod tests {
             redraws.get() > opened,
             "Closing a root dialog must remove the workspace overlay"
         );
+    }
+    #[gpui::test]
+    fn channel_switch_ignores_stale_results_and_background_checks_obey_preferences(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        use super::{Channel, Command, UpdateStatus};
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            crate::apply_theme("dark", None, cx);
+        });
+        let (commands, rx) = async_channel::bounded(32);
+        let (_tx, messages) = async_channel::bounded(32);
+        let (_done, stopped) = async_channel::bounded(1);
+        let mut view = None;
+        let window = cx.add_window(|window, cx| {
+            let workspace = cx.new(|cx| {
+                Workspace::new(
+                    Backend {
+                        commands,
+                        messages,
+                        stopped,
+                    },
+                    Preferences {
+                        update_channel: Channel::Stable,
+                        auto_check_updates: false,
+                        ..Default::default()
+                    },
+                    window,
+                    cx,
+                )
+            });
+            view = Some(workspace.clone());
+            Root::new(workspace, window, cx)
+        });
+        cx.run_until_parked();
+        assert!(
+            rx.try_recv().is_err(),
+            "disabled automatic checks must not contact a server on launch"
+        );
+        let view = view.unwrap();
+        window
+            .update(cx, |_, window, cx| {
+                view.update(cx, |view, cx| {
+                    view.change_update_channel(Channel::Beta, cx);
+                    view.receive(
+                        Message::UpdateChecked(Channel::Stable, true, Ok(None)),
+                        window,
+                        cx,
+                    );
+                    assert!(matches!(view.update_status, UpdateStatus::Checking));
+                    view.receive(
+                        Message::UpdateChecked(Channel::Beta, true, Ok(None)),
+                        window,
+                        cx,
+                    );
+                    assert!(matches!(view.update_status, UpdateStatus::Current));
+                    view.preferences.auto_check_updates = true;
+                })
+            })
+            .unwrap();
+        assert!(matches!(rx.try_recv().unwrap(), Command::Preferences(_)));
+        assert!(matches!(
+            rx.try_recv().unwrap(),
+            Command::CheckUpdate(Channel::Beta, true)
+        ));
+        cx.executor().advance_clock(crate::updater::CHECK_INTERVAL);
+        cx.run_until_parked();
+        assert!(matches!(
+            rx.try_recv().unwrap(),
+            Command::CheckUpdate(Channel::Beta, false)
+        ));
+        view.update(cx, |view, _| {
+            view.preferences.auto_check_updates = false;
+            view.update_status = UpdateStatus::Idle;
+        });
+        cx.executor().advance_clock(crate::updater::CHECK_INTERVAL);
+        cx.run_until_parked();
+        assert!(rx.try_recv().is_err());
+        // Exercise the settings composition with real GPUI layout, including
+        // narrow windows and long localized controls. This is not a screenshot test.
+        let visual = gpui::VisualTestContext::from_window(*window, cx);
+        for width in [760., 1180.] {
+            visual.simulate_resize(gpui::size(gpui::px(width), gpui::px(760.)));
+            for appearance in ["light", "dark"] {
+                for locale in ["en", "zh-CN", "ja", "ko"] {
+                    window
+                        .update(cx, |_, window, cx| {
+                            let view = view.clone();
+                            window.defer(cx, move |window, cx| {
+                                crate::apply_theme(appearance, Some(window), cx);
+                                view.update(cx, |view, cx| {
+                                    view.preferences.locale = locale.into();
+                                    view.open_settings(window, cx);
+                                    view.update = Some(crate::updater::Release {
+                                        version: "1.1.0-beta.1".into(),
+                                        channel: Some(Channel::Beta),
+                                        notes: "Release notes".into(),
+                                        platforms: Default::default(),
+                                    });
+                                    view.update_status = UpdateStatus::Available;
+                                });
+                            });
+                        })
+                        .unwrap();
+                    cx.run_until_parked();
+                }
+            }
+        }
     }
 }

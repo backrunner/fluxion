@@ -8,6 +8,8 @@ target/
 *.fluxionpart
 .playwright-cli/
 output/
+__pycache__/
+*.pyc
 
 # Local secrets and signing material
 .env

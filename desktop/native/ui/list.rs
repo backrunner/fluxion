@@ -124,6 +124,33 @@ impl Workspace {
                     ),
             )
             .child(div().flex_1())
+            .when(self.update.is_some(), |view| {
+                view.child(
+                    div().px_3().pb_2().child(
+                        Button::new("available-update")
+                            .ghost()
+                            .w_full()
+                            .child(
+                                h_flex()
+                                    .w_full()
+                                    .gap_2()
+                                    .text_size(px(13.))
+                                    .child(
+                                        icon_view("arrow-down-to-line")
+                                            .text_color(cx.theme().primary),
+                                    )
+                                    .child(self.tr(if self.update_prepared.is_some() {
+                                        "native.restartUpdate"
+                                    } else {
+                                        "native.updateAvailable"
+                                    })),
+                            )
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.open_settings(window, cx)),
+                            ),
+                    ),
+                )
+            })
             .child(self.transfer_meter(total, cx))
             .child(
                 div().px_3().pb_3().child(
@@ -145,16 +172,7 @@ impl Workspace {
         let reading = |label: String, value: u64, icon: &str, tint: Hsla| {
             h_flex()
                 .gap_3()
-                .child(
-                    div()
-                        .size(px(32.))
-                        .rounded_lg()
-                        .bg(tint.opacity(0.10))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(icon_view(icon).text_color(tint)),
-                )
+                .child(icon_view(icon).text_color(tint))
                 .child(
                     div()
                         .flex_1()
@@ -169,7 +187,7 @@ impl Workspace {
             .mb_3()
             .p_3()
             .gap_3()
-            .rounded_2xl()
+            .rounded_lg()
             .bg(cx.theme().background)
             .child(
                 h_flex()
@@ -404,7 +422,7 @@ impl Workspace {
         let mut pane = v_flex()
             .h_full()
             .min_w_0()
-            .rounded_2xl()
+            .rounded_xl()
             .overflow_hidden()
             .bg(cx.theme().background);
         if self.preferences.detail_open && window.viewport_size().width >= px(1020.) {

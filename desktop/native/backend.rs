@@ -20,8 +20,9 @@ pub enum Action {
 
 pub enum Command {
     Refresh,
-    CheckUpdate(bool),
-    InstallUpdate(crate::updater::Release),
+    CheckUpdate(crate::updater::Channel, bool),
+    DownloadUpdate(crate::updater::Release, crate::updater::Channel),
+    InstallUpdate(crate::updater::PreparedUpdate),
     Detail(TaskId),
     Bt(TaskId),
     Create(CreateTaskInput),
@@ -44,10 +45,13 @@ pub enum Message {
     Error(String),
     Finished,
     UpdateChecked(
+        crate::updater::Channel,
         bool,
         std::result::Result<Option<crate::updater::Release>, String>,
     ),
     UpdateProgress(u64, Option<u64>),
+    UpdateVerifying,
+    UpdateReady(crate::updater::PreparedUpdate),
     UpdateError(String),
     Restart,
 }
@@ -108,25 +112,59 @@ impl Backend {
             });
             let mut preview_task: Option<tokio::task::JoinHandle<()>> = None;
             let mut update_task: Option<tokio::task::JoinHandle<()>> = None;
+            let mut check_task: Option<tokio::task::JoinHandle<()>> = None;
             while let Ok(command) = rx.recv().await {
-                if matches!(command, Command::CheckUpdate(_) | Command::InstallUpdate(_)) {
+                if let Command::CheckUpdate(channel, manual) = command {
                     if update_task.as_ref().is_some_and(|t| !t.is_finished()) {
                         continue;
+                    }
+                    if let Some(task) = check_task.take() {
+                        task.abort();
+                    }
+                    let tx = tx.clone();
+                    check_task = Some(tokio::spawn(async move {
+                        let result = crate::updater::check(channel).await.map_err(|_| {
+                            "Unable to check for updates. Please try again later.".into()
+                        });
+                        let _ = tx
+                            .send(Message::UpdateChecked(channel, manual, result))
+                            .await;
+                    }));
+                    continue;
+                }
+                if matches!(
+                    command,
+                    Command::DownloadUpdate(..) | Command::InstallUpdate(_)
+                ) {
+                    if update_task.as_ref().is_some_and(|t| !t.is_finished()) {
+                        continue;
+                    }
+                    if let Some(task) = check_task.take() {
+                        task.abort();
                     }
                     let tx = tx.clone();
                     update_task = Some(tokio::spawn(async move {
                         match command {
-                            Command::CheckUpdate(manual) => {
-                                let result = crate::updater::check().await.map_err(|_| {
-                                    "Unable to check for updates. Please try again later.".into()
-                                });
-                                let _ = tx.send(Message::UpdateChecked(manual, result)).await;
+                            Command::DownloadUpdate(release, channel) => {
+                                match crate::updater::prepare(release, channel, tx.clone()).await {
+                                    Ok(prepared) => {
+                                        let _ = tx.send(Message::UpdateReady(prepared)).await;
+                                    }
+                                    Err(error) => {
+                                        let _ =
+                                            tx.send(Message::UpdateError(error.to_string())).await;
+                                    }
+                                }
                             }
-                            Command::InstallUpdate(release) => {
-                                if let Err(error) =
-                                    crate::updater::install(release, tx.clone()).await
-                                {
-                                    let _ = tx.send(Message::UpdateError(error.to_string())).await;
+                            Command::InstallUpdate(prepared) => {
+                                match crate::updater::install(prepared).await {
+                                    Ok(()) => {
+                                        let _ = tx.send(Message::Restart).await;
+                                    }
+                                    Err(error) => {
+                                        let _ =
+                                            tx.send(Message::UpdateError(error.to_string())).await;
+                                    }
                                 }
                             }
                             _ => unreachable!(),
@@ -178,6 +216,9 @@ impl Backend {
                 task.abort();
             }
             if let Some(task) = update_task {
+                task.abort();
+            }
+            if let Some(task) = check_task {
                 task.abort();
             }
             let _ = done.send(()).await;
@@ -273,7 +314,10 @@ async fn execute(
             tx.send(Message::Saved).await?;
         }
         Command::Preferences(prefs) => prefs.save(data).await?,
-        Command::Preview(..) | Command::CheckUpdate(_) | Command::InstallUpdate(_) => {
+        Command::Preview(..)
+        | Command::CheckUpdate(..)
+        | Command::DownloadUpdate(..)
+        | Command::InstallUpdate(_) => {
             unreachable!()
         }
     }
