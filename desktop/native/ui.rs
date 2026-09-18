@@ -45,6 +45,7 @@ pub struct Workspace {
     busy: bool,
     error: String,
     form: Option<Entity<Form>>,
+    browser_reply: Option<tokio::sync::oneshot::Sender<fluxion_browser::Response>>,
     settings_form: Option<Entity<Form>>,
     subscriptions: Vec<Subscription>,
     last_bt: Instant,
@@ -122,6 +123,7 @@ impl Workspace {
             busy: false,
             error: String::new(),
             form: None,
+            browser_reply: None,
             settings_form: None,
             subscriptions,
             last_bt: Instant::now(),
@@ -291,7 +293,30 @@ impl Workspace {
                     self.bt = state;
                 }
             }
+            Message::BrowserDownload(draft) => {
+                if draft.reply.is_closed() {
+                    return;
+                }
+                if self.busy || window.has_active_dialog(cx) {
+                    let _ = draft
+                        .reply
+                        .send(fluxion_browser::Response::error("app_busy"));
+                    return;
+                }
+                self.open_form(FormKind::Create, window, cx);
+                if let Some(form) = &self.form {
+                    form.update(cx, |form, cx| {
+                        form.inherit_browser(draft.download, window, cx)
+                    });
+                    self.browser_reply = Some(draft.reply);
+                    cx.activate(true);
+                    window.activate_window();
+                }
+            }
             Message::Created(id) => {
+                if let Some(reply) = self.browser_reply.take() {
+                    let _ = reply.send(fluxion_browser::Response::task("created", id));
+                }
                 self.form = None;
                 window.close_dialog(cx);
                 self.filter = Filter::All;
@@ -595,6 +620,7 @@ impl Workspace {
                     let weak = weak.clone();
                     move |_, _, cx| {
                         let _ = weak.update(cx, |this, cx| {
+                            this.browser_reply.take();
                             this.form = None;
                             cx.notify();
                         });
@@ -607,10 +633,25 @@ impl Workspace {
     fn form_event(&mut self, event: &FormEvent, window: &mut Window, cx: &mut Context<Self>) {
         match event {
             FormEvent::Cancel => {
+                self.browser_reply.take();
                 self.form = None;
                 window.close_dialog(cx);
             }
             FormEvent::Submit(command) => {
+                if self
+                    .browser_reply
+                    .as_ref()
+                    .is_some_and(|reply| reply.is_closed())
+                {
+                    if let Some(form) = &self.form {
+                        form.update(cx, |form, cx| {
+                            form.busy = false;
+                            form.error = t(&form.locale, "native.browserDisconnected");
+                            cx.notify();
+                        });
+                    }
+                    return;
+                }
                 let command = match command {
                     Command::Create(input) => Command::Create(input.clone()),
                     Command::Settings(s) => Command::Settings(s.clone()),
@@ -974,6 +1015,165 @@ mod tests {
     use super::{Backend, Message, Preferences, Root, SettingsSnapshot, Workspace};
     use gpui::{AppContext, WindowOptions};
     use gpui_component::WindowExt;
+    #[gpui::test]
+    fn browser_download_uses_the_existing_form_and_waits_for_creation(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        use crate::{backend::Command, form::FormEvent};
+        use fluxion_browser::{Download, Header, IncomingDownload};
+        use fluxion_core::{SECRET_HTTP_SOURCE_URL, TaskKind};
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            crate::apply_theme("dark", None, cx);
+        });
+        let (commands, rx) = async_channel::bounded(32);
+        let (tx, messages) = async_channel::bounded(32);
+        let (_done, stopped) = async_channel::bounded(1);
+        let mut workspace = None;
+        let window = cx.add_window(|window, cx| {
+            let view = cx.new(|cx| {
+                Workspace::new(
+                    Backend {
+                        commands,
+                        messages,
+                        stopped,
+                    },
+                    Preferences::default(),
+                    window,
+                    cx,
+                )
+            });
+            workspace = Some(view.clone());
+            Root::new(view, window, cx)
+        });
+        let view = workspace.unwrap();
+        let download = Download {
+            url: "https://example.test/archive?opaque=private-url".into(),
+            filename: Some("browser.zip".into()),
+            headers: vec![
+                Header {
+                    name: "cookie".into(),
+                    value: "sid=private-cookie".into(),
+                },
+                Header {
+                    name: "authorization".into(),
+                    value: "Bearer private-auth".into(),
+                },
+                Header {
+                    name: "referer".into(),
+                    value: "https://example.test/?opaque=private-referrer".into(),
+                },
+            ],
+        };
+        let (reply, mut decision) = tokio::sync::oneshot::channel();
+        tx.try_send(Message::BrowserDownload(IncomingDownload {
+            download: download.clone(),
+            reply,
+        }))
+        .unwrap();
+        cx.run_until_parked();
+        let form = view.read_with(cx, |view, _| view.form.clone().expect("Add Task form"));
+        assert!(matches!(
+            decision.try_recv(),
+            Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+        ));
+        while let Ok(command) = rx.try_recv() {
+            assert!(
+                !matches!(command, Command::Create(_) | Command::Act(..)),
+                "Receiving IPC must not create/start a task"
+            );
+        }
+        let (busy_reply, mut busy_decision) = tokio::sync::oneshot::channel();
+        tx.try_send(Message::BrowserDownload(IncomingDownload {
+            download: download.clone(),
+            reply: busy_reply,
+        }))
+        .unwrap();
+        cx.run_until_parked();
+        assert_eq!(busy_decision.try_recv().unwrap().status, "app_busy");
+        window
+            .update(cx, |_, window, cx| {
+                form.update(cx, |form, cx| {
+                    assert_eq!(
+                        form.inputs["cookie"].read(cx).value().as_str(),
+                        "sid=private-cookie"
+                    );
+                    assert!(
+                        form.inputs["headers"]
+                            .read(cx)
+                            .value()
+                            .contains("private-auth")
+                    );
+                    form.set("directory", "/tmp/chosen-downloads", window, cx);
+                    form.set("filename", "用户选择.zip", window, cx);
+                    form.set("connections", "4", window, cx);
+                });
+                let command = form.read(cx).command(cx).unwrap();
+                view.update(cx, |view, cx| {
+                    view.form_event(&FormEvent::Submit(command), window, cx)
+                });
+            })
+            .unwrap();
+        let Command::Create(input) = rx.try_recv().expect("ordinary Create command") else {
+            panic!("expected Create");
+        };
+        assert_eq!(input.save_dir.to_str(), Some("/tmp/chosen-downloads"));
+        assert_eq!(input.file_name.as_deref(), Some("用户选择.zip"));
+        assert_eq!(
+            input.credentials.extra[SECRET_HTTP_SOURCE_URL],
+            download.url
+        );
+        assert_eq!(input.credentials.headers.len(), 3);
+        let TaskKind::Http(config) = &input.kind else {
+            panic!("expected HTTP");
+        };
+        assert_eq!(config.max_connections, Some(4));
+        assert_eq!(config.redirect_limit, 0);
+        assert!(
+            !serde_json::to_string(&input.kind)
+                .unwrap()
+                .contains("private-")
+        );
+        assert!(matches!(
+            decision.try_recv(),
+            Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+        ));
+        let id = uuid::Uuid::new_v4();
+        tx.try_send(Message::Created(id)).unwrap();
+        tx.try_send(Message::Finished).unwrap();
+        cx.run_until_parked();
+        assert_eq!(decision.try_recv().unwrap().task_id, Some(id));
+        assert!(view.read_with(cx, |view, _| view.form.is_none()));
+        while let Ok(command) = rx.try_recv() {
+            assert!(
+                !matches!(command, Command::Act(..)),
+                "Normal creation must not auto-start"
+            );
+        }
+        let (reply, mut cancelled) = tokio::sync::oneshot::channel();
+        tx.try_send(Message::BrowserDownload(IncomingDownload {
+            download,
+            reply,
+        }))
+        .unwrap();
+        cx.run_until_parked();
+        let cancel_view = view.clone();
+        window
+            .update(cx, |_, window, cx| {
+                window.defer(cx, move |window, cx| {
+                    cancel_view.update(cx, |view, cx| {
+                        view.form_event(&FormEvent::Cancel, window, cx)
+                    });
+                })
+            })
+            .unwrap();
+        cx.run_until_parked();
+        assert!(matches!(
+            cancelled.try_recv(),
+            Err(tokio::sync::oneshot::error::TryRecvError::Closed)
+        ));
+        assert!(rx.try_recv().is_err(), "Cancel must not create any task");
+    }
     #[gpui::test]
     fn snapshot_queued_before_window_creation_is_applied(cx: &mut gpui::TestAppContext) {
         cx.update(|cx| {

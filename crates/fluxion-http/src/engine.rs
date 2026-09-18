@@ -217,7 +217,13 @@ impl DownloadEngine for HttpEngine {
         headers.extend(task.credentials.headers.clone());
         let mut previous_meta = ctx.storage.get_http_meta(task.task.id).await?;
         let client = self.client_for(&ctx, &config, &proxy).await?;
-        let resource = probe(&client, &config, &headers).await?;
+        let mut resource = probe(&client, &config, &headers).await?;
+        // A pinned final URL can deliberately keep its entire query in
+        // SecretStore (browser handoff). Preserve that privacy in probe metadata
+        // and resume comparisons, including nonstandard signed query names.
+        if config.redirect_limit == 0 && stored_config.url.query().is_none() {
+            resource.final_url.set_query(None);
+        }
         if has_http_resume_state(&ctx, task.task.id, previous_meta.as_ref()).await? {
             // Requirements §4.2: when stored validators no longer match (or no
             // validator exists at all), the resume data cannot be trusted —

@@ -75,8 +75,9 @@ def main():
     env = dict(os.environ, FLUXION_VERSION=args.version, FLUXION_CHANNEL=args.channel)
     targets = ['aarch64-apple-darwin', 'x86_64-apple-darwin'] if args.universal else [None]
     binaries = []
+    browser_hosts = []
     for target in targets:
-        cargo = ['cargo', 'build', '--locked', '-p', 'fluxion-app']
+        cargo = ['cargo', 'build', '--locked', '-p', 'fluxion-app', '-p', 'fluxion-browser']
         if args.release:
             cargo.append('--release')
         if target:
@@ -84,6 +85,7 @@ def main():
         if not args.skip_build:
             run(*cargo, env=env)
         binaries.append(ROOT / 'target' / (target or '') / profile / 'fluxion-app')
+        browser_hosts.append(ROOT / 'target' / (target or '') / profile / 'fluxion-browser-host')
     output = ROOT / 'target' / ('universal-apple-darwin' if args.universal else 'native') / profile / 'bundle'
     app = output / ('Fluxion Preview.app' if args.preview else 'Fluxion.app')
     if app.exists():
@@ -97,6 +99,13 @@ def main():
         run('lipo', '-create', *(str(p) for p in binaries), '-output', str(executable))
     else:
         shutil.copy2(binaries[0], executable)
+    browser_host = macos / 'fluxion-browser-host'
+    if args.universal:
+        run('lipo', '-create', *(str(p) for p in browser_hosts), '-output', str(browser_host))
+    else:
+        shutil.copy2(browser_hosts[0], browser_host)
+    shutil.copytree(ROOT / 'browser-extension', resources / 'browser-extension',
+                    ignore=shutil.ignore_patterns('*.test.mjs'))
     shutil.copy2(ROOT / 'desktop/assets/app/icon.icns', resources / 'icon.icns')
     plist = {
         'CFBundleName': 'Fluxion', 'CFBundleDisplayName': 'Fluxion',
@@ -116,6 +125,7 @@ def main():
     command = ['codesign', '--force', '--sign', identity]
     if identity != '-':
         command += ['--options', 'runtime', '--timestamp']
+    run(*command, str(browser_host))
     run(*command, str(app))
     run('codesign', '--verify', '--deep', '--strict', str(app))
     if args.notarize:

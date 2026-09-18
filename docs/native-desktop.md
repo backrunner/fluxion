@@ -12,6 +12,9 @@ removed. The navigation / task list / inspector structure is preserved.
   limits, trackers, file selection and system file dialogs.
 - `desktop/native/backend.rs`: bounded command/event channels and asynchronous
   calls into Fluxion Core. Filesystem and network operations run on Tokio.
+- `crates/fluxion-browser`: Native Messaging host and the private browser/App bridge.
+  The existing Core owns browser tasks, so they arrive through the same UI events.
+  See [browser setup](browser-extension.md).
 - `desktop/native/model.rs`: event reduction, filtering, formatting and UI preferences.
 - `desktop/native/updater.rs`: channel selection, signed downloads, staged installation and restart.
 - `desktop/assets`: embedded Lucide SVGs, app icons and four language dictionaries.

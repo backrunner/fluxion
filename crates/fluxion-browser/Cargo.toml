@@ -1,0 +1,21 @@
+[package]
+name = "fluxion-browser"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "fluxion-browser-host"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+fluxion-core = { path = "../fluxion-core" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

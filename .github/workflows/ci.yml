@@ -48,6 +48,7 @@ jobs:
         run: |
           cargo fmt --all -- --check
           node --test scripts/release/*.test.mjs
+          node --test browser-extension/*.test.mjs
           python3 -m unittest discover -s scripts/release -p 'test_*.py'
           sh -n desktop/native/install-update.sh
           bash -n scripts/release/upload-r2.sh
@@ -65,6 +66,7 @@ jobs:
         run: |
           bundle=target/universal-apple-darwin/release/bundle
           lipo "${bundle}/Fluxion.app/Contents/MacOS/fluxion-app" -verify_arch arm64 x86_64
+          lipo "${bundle}/Fluxion.app/Contents/MacOS/fluxion-browser-host" -verify_arch arm64 x86_64
           codesign --verify --deep --strict "${bundle}/Fluxion.app"
           hdiutil verify "${bundle}/Fluxion_0.1.0_universal.dmg"
           test -s "${bundle}/Fluxion.app.tar.gz"
