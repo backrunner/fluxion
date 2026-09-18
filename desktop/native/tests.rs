@@ -332,3 +332,62 @@ fn opening_a_completed_file_rejects_symlink_escape() {
         .is_err()
     );
 }
+
+#[gpui::test]
+fn editing_browser_source_clears_inherited_credentials(cx: &mut gpui::TestAppContext) {
+    use gpui::*;
+    cx.update(|cx| {
+        gpui_component::init(cx);
+        crate::apply_theme("light", None, cx);
+    });
+    let mut form = None;
+    let window = cx.add_window(|window, cx| {
+        let view = cx.new(|cx| {
+            crate::form::Form::new(crate::form::FormKind::Create, "zh-CN".into(), window, cx)
+        });
+        form = Some(view.clone());
+        gpui_component::Root::new(view, window, cx)
+    });
+    let form = form.unwrap();
+    window
+        .update(cx, |_, window, cx| {
+            form.update(cx, |form, cx| {
+                form.inherit_browser(
+                    fluxion_browser::Download {
+                        url: "https://example.test/file?opaque=private".into(),
+                        filename: Some("file.bin".into()),
+                        headers: vec![fluxion_browser::Header {
+                            name: "cookie".into(),
+                            value: "sid=private".into(),
+                        }],
+                    },
+                    window,
+                    cx,
+                );
+            })
+        })
+        .unwrap();
+    cx.run_until_parked();
+    form.update(cx, |form, cx| {
+        assert_eq!(
+            form.inputs["cookie"].read(cx).value().as_str(),
+            "sid=private"
+        )
+    });
+    window
+        .update(cx, |_, window, cx| {
+            form.update(cx, |form, cx| {
+                form.set("source", "https://other.test/file", window, cx)
+            })
+        })
+        .unwrap();
+    cx.run_until_parked();
+    form.update(cx, |form, cx| {
+        assert!(form.inputs["cookie"].read(cx).value().is_empty());
+        let Command::Create(input) = form.command(cx).unwrap() else {
+            panic!("expected Create");
+        };
+        assert!(input.credentials.headers.is_empty());
+        assert!(!input.credentials.extra.contains_key(SECRET_HTTP_SOURCE_URL));
+    });
+}

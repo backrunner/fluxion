@@ -55,6 +55,7 @@ pub struct Form {
     pub resolving: bool,
     subscriptions: Vec<Subscription>,
     revealed: std::collections::BTreeSet<&'static str>,
+    browser_source: Option<String>,
 }
 impl EventEmitter<FormEvent> for Form {}
 
@@ -95,6 +96,7 @@ impl Form {
             resolving: false,
             subscriptions: vec![],
             revealed: Default::default(),
+            browser_source: None,
         };
         let directory = std::env::var_os("HOME")
             .map(PathBuf::from)
@@ -126,16 +128,60 @@ impl Form {
             form.set("deny", settings.bt_ip_deny.join("\n"), window, cx);
         }
         let source = form.inputs["source"].clone();
-        form.subscriptions
-            .push(cx.subscribe(&source, |this, _, event, cx| {
+        form.subscriptions.push(
+            cx.subscribe_in(&source, window, |this, _, event, window, cx| {
                 if matches!(event, InputEvent::Change) {
+                    if this
+                        .browser_source
+                        .as_ref()
+                        .is_some_and(|original| original != &this.value("source", cx))
+                    {
+                        // Never carry a browser request's credentials to an edited URL.
+                        for key in ["cookie", "headers", "referer", "agent"] {
+                            this.set(key, "", window, cx);
+                        }
+                        this.browser_source = None;
+                        this.error = t(&this.locale, "native.browserCredentialsCleared");
+                    }
                     this.preview = None;
                     this.preview_generation += 1;
                     this.resolving = false;
                     cx.notify();
                 }
-            }));
+            }),
+        );
         form
+    }
+    pub fn inherit_browser(
+        &mut self,
+        download: fluxion_browser::Download,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.set("source", download.url.clone(), window, cx);
+        self.set(
+            "filename",
+            download.filename.unwrap_or_default(),
+            window,
+            cx,
+        );
+        let mut extra = Vec::new();
+        for header in download.headers {
+            let field = match header.name.to_ascii_lowercase().as_str() {
+                "cookie" => Some("cookie"),
+                "referer" => Some("referer"),
+                "user-agent" => Some("agent"),
+                _ => None,
+            };
+            if let Some(field) = field {
+                self.set(field, header.value, window, cx);
+            } else {
+                extra.push(format!("{}: {}", header.name, header.value));
+            }
+        }
+        self.set("headers", extra.join("\n"), window, cx);
+        self.browser_source = Some(download.url);
+        cx.notify();
     }
     pub fn set_locale(&mut self, locale: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.locale = locale.into();
@@ -261,7 +307,7 @@ impl Form {
         }
         cx.notify();
     }
-    fn command(&self, cx: &App) -> anyhow::Result<Command> {
+    pub(crate) fn command(&self, cx: &App) -> anyhow::Result<Command> {
         let down = parse_limit(&self.value("down", cx))?;
         let up = parse_limit(&self.value("up", cx))?;
         let limits = TaskRateLimit {
@@ -307,14 +353,30 @@ impl Form {
         if let Some(selection) = &selection {
             anyhow::ensure!(!selection.is_empty(), "Select at least one file");
         }
-        Ok(Command::Create(build_input(
+        let mut input = build_input(
             &values,
             limits,
             trackers,
             self.proxy,
             self.seeding,
             selection.unwrap_or_default(),
-        )?))
+        )?;
+        if let Some(original) = &self.browser_source {
+            anyhow::ensure!(original == &self.value("source", cx), "Browser URL changed");
+            // Ordinary creation handles persistence only after Submit. Preserve
+            // the inherited request's privacy and final-origin restriction.
+            if let TaskKind::Http(config) = &mut input.kind {
+                input.credentials.headers.append(&mut config.headers);
+                input
+                    .credentials
+                    .extra
+                    .insert(SECRET_HTTP_SOURCE_URL.into(), original.clone());
+                config.url.set_query(None);
+                config.url.set_fragment(None);
+                config.redirect_limit = 0;
+            }
+        }
+        Ok(Command::Create(input))
     }
 }
 
@@ -338,6 +400,7 @@ fn validation_message(locale: &str, error: &str) -> String {
         "The transfer URL must point to a file" => "validation.path",
         "FTPS is not supported. Use FTP or SFTP." => "validation.ftps",
         "Invalid tracker URL" => "validation.tracker",
+        "Browser URL changed" => "native.browserCredentialsCleared",
         "Invalid magnet link" => "validation.magnet",
         "Enter a valid share ratio" => "validation.ratio",
         "Use an HTTP, HTTPS, FTP, SFTP or magnet link" => "validation.link",
@@ -572,6 +635,14 @@ impl Render for Form {
             || (source.ends_with(".torrent") && std::path::Path::new(&source).is_absolute());
         let ftp = source.starts_with("ftp:") || source.starts_with("sftp:");
         let mut body = v_flex().gap_4();
+        if self.browser_source.is_some() {
+            body = body.child(
+                div()
+                    .text_sm()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(t(&self.locale, "native.browserDownload")),
+            );
+        }
         if creating {
             body = body
                 .child(

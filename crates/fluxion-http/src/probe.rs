@@ -194,7 +194,7 @@ pub fn http_status_error(status: StatusCode) -> FluxionError {
 }
 
 pub fn network_error(error: reqwest::Error) -> FluxionError {
-    FluxionError::new(FluxionErrorKind::Network, error.to_string())
+    FluxionError::new(FluxionErrorKind::Network, error.without_url().to_string())
 }
 
 #[cfg(test)]

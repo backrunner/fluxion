@@ -39,6 +39,7 @@ pub enum Message {
     Detail(TaskId, Option<TaskDetail>),
     Bt(TaskId, Option<BtStateSnapshot>),
     Created(TaskId),
+    BrowserDownload(fluxion_browser::IncomingDownload),
     Acted(TaskId, Action),
     Saved,
     Preview(u64, std::result::Result<MagnetPreview, String>),
@@ -110,6 +111,54 @@ impl Backend {
                     }
                 }
             });
+            // Preview/test databases do not claim the production browser bridge.
+            let browser_bridge = if data == data_dir()
+                && (std::env::var_os("FLUXION_DATA_DIR").is_none()
+                    || std::env::var_os("FLUXION_BROWSER_DIR").is_some())
+            {
+                match fluxion_browser::bind(&fluxion_browser::bridge_dir()).await {
+                    Ok(listener) => {
+                        let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
+                        if std::env::var_os("FLUXION_DATA_DIR").is_none()
+                            && let Ok(executable) = std::env::current_exe()
+                            && let Some(parent) = executable.parent()
+                        {
+                            let host = parent.join("fluxion-browser-host");
+                            if host.is_file() {
+                                let registration_home = home.clone();
+                                // Registration is small filesystem work, kept off GPUI.
+                                let _ = tokio::task::spawn_blocking(move || {
+                                    fluxion_browser::register_hosts(&host, &registration_home)
+                                })
+                                .await;
+                            }
+                        }
+                        let (drafts, mut incoming) = tokio::sync::mpsc::channel(1);
+                        let browser_tx = tx.clone();
+                        Some(tokio::spawn(async move {
+                            let server = fluxion_browser::serve(listener, drafts);
+                            let forward = async move {
+                                while let Some(draft) = incoming.recv().await {
+                                    if browser_tx
+                                        .send(Message::BrowserDownload(draft))
+                                        .await
+                                        .is_err()
+                                    {
+                                        break;
+                                    }
+                                }
+                            };
+                            tokio::select! { _ = server => {}, _ = forward => {} }
+                        }))
+                    }
+                    Err(_) => {
+                        let _ = tx.send(Message::Error("Browser integration is unavailable. Close other Fluxion instances and restart.".into())).await;
+                        None
+                    }
+                }
+            } else {
+                None
+            };
             let mut preview_task: Option<tokio::task::JoinHandle<()>> = None;
             let mut update_task: Option<tokio::task::JoinHandle<()>> = None;
             let mut check_task: Option<tokio::task::JoinHandle<()>> = None;
@@ -209,6 +258,11 @@ impl Backend {
                 if busy {
                     let _ = tx.send(Message::Finished).await;
                 }
+            }
+            if let Some(task) = browser_bridge {
+                task.abort();
+                let _ = task.await;
+                let _ = tokio::fs::remove_file(fluxion_browser::socket_path()).await;
             }
             let _ = core.pause_all().await;
             forward.abort();

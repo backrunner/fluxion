@@ -31,6 +31,7 @@ light/dark themes and compact task controls. See [native desktop notes](docs/nat
 - Task lifecycle controls, batch actions, search, filters, a trash workflow, and signed application updates.
 - English, Simplified Chinese, Japanese, and Korean interface languages.
 - A daemon-backed CLI for automation, events, settings, and redacted diagnostics.
+- A Chromium browser extension with size-based HTTP capture and local credential inheritance.
 
 ## Protocol Status
 
@@ -41,7 +42,7 @@ light/dark themes and compact task controls. See [native desktop notes](docs/nat
 | FTP | Available | Passive or active mode, partial-file resume, anonymous or credentialed access |
 | SFTP | Available | Password or private-key authentication, resume, TOFU host-key checks |
 | FTPS | Not yet supported | The task model is reserved, but the engine intentionally rejects FTPS today |
-| Browser capture | Planned | Native Messaging handoff is documented but not implemented yet |
+| Browser capture | Unpacked extension | Chrome/Edge HTTP handoff, configurable size threshold, request credential inheritance; [setup](docs/browser-extension.md) |
 
 ## Architecture
 
@@ -70,6 +71,7 @@ The workspace keeps protocol engines and platform concerns separate:
 | `fluxion-storage` | SQLite persistence and secret-reference handling |
 | `fluxion-platform` | Keychain and operating-system services |
 | `fluxion-runtime` | Production assembly of Core, storage, and engines |
+| `fluxion-browser` | Native Messaging host, strict browser DTOs, private App bridge |
 | `desktop/native/backend.rs` | Native App/Core commands, redacted snapshots, event delivery |
 | `fluxion-cli` | CLI, daemon, Unix-socket IPC, events, and diagnostics |
 
@@ -79,7 +81,7 @@ The workspace keeps protocol engines and platform concerns separate:
 
 - macOS with Xcode Command Line Tools
 - Rust `1.96.0`
-- Python 3 for macOS app bundling (Node.js is only used by release manifest tooling)
+- Python 3 for macOS app bundling; Node.js for release tooling and browser extension tests
 
 ### Desktop app
 
@@ -122,6 +124,7 @@ cargo test --workspace
 cargo test -p fluxion-app
 
 node --test scripts/release/*.test.mjs
+node --test browser-extension/*.test.mjs
 python3 -m unittest discover -s scripts/release -p 'test_*.py'
 ```
 

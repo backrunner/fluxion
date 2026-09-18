@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Fluxion · 浏览器下载</title>
+  <link rel="stylesheet" href="options.css">
+  <script type="module" src="options.mjs"></script>
+</head>
+<body>
+  <header><strong>Fluxion</strong><span>浏览器下载</span></header>
+  <main>
+    <form id="settings">
+      <label class="toggle"><span>自动交给 Fluxion</span><input id="enabled" type="checkbox" role="switch"></label>
+      <label for="minimum">小于此大小时，继续用浏览器下载</label>
+      <div class="size"><input id="minimum" type="number" min="0" max="1048576" step="any" required><span>MiB</span></div>
+      <p class="hint">1 MiB = 1,048,576 字节。设为 0 可接管所有已知大小的文件。</p>
+      <label class="check"><input id="unknown" type="checkbox"><span>也接管大小未知的文件</span></label>
+      <details>
+        <summary>请求凭据</summary>
+        <p class="hint">继承下载请求的 Cookie、Authorization、Referer 和 User-Agent。浏览器隐藏请求头时，仅为同源下载补全该地址的 Cookie。凭据通过本机 IPC 预填到 Fluxion 的添加任务窗口。确认添加前只保存在内存中。</p>
+        <label for="headers">额外请求头名称（用逗号分隔）</label>
+        <input id="headers" type="text" placeholder="X-Api-Key, X-Download-Token" autocomplete="off" spellcheck="false">
+        <p class="hint">仅填写网站下载需要的 X- 请求头名称，不填写凭据值。</p>
+      </details>
+      <div class="actions"><button type="submit">保存设置</button><button id="connect" type="button" class="secondary">检查连接</button></div>
+    </form>
+    <p id="status" role="status" aria-live="polite"></p>
+    <section aria-labelledby="active-title"><h2 id="active-title">浏览器正在下载</h2><p class="hint">可单独接管最近开始的下载，不受大小下限限制。</p><div id="downloads"></div></section>
+    <footer>仅支持 HTTP/HTTPS GET 下载。首次使用请先打开新版 Fluxion。在添加任务窗口选择保存位置并确认。<br>无法匹配请求、POST 和 blob 下载会继续由浏览器处理。</footer>
+  </main>
+</body>
+</html>

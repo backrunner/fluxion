@@ -9,6 +9,7 @@ members = [
   "crates/fluxion-sftp",
   "crates/fluxion-bt",
   "crates/fluxion-runtime",
+  "crates/fluxion-browser",
   "crates/fluxion-cli",
   "desktop",
 ]

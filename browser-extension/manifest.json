@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Fluxion Browser Downloads",
+  "version": "0.1.0",
+  "description": "将 HTTP 下载交给 Fluxion，按文件大小跳过，并继承下载请求的登录凭据。",
+  "minimum_chrome_version": "132",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtAEJ+3S/odP2px/9CF22+1vKWGzzJBaFMDdi1ht2ewqX5odmZ6Kezwo0Dvlq3ZDvBDu+1tajzO8P0ZLImglOLqR3VuOKH1TtSPmWc86ZkepOS/CzT6Eucpa3T4GjPkIZiSIKzjaDFBPjGTUFfsRiEi12ExOp5cfH2LVBNDbUYrbrAl1SplHIkSWhITKB6xy6MitNZXFqQxILP5prPBG0nn9PsgDqMykpANN/i3+eQXthohvVEmSn/7WvCPt5/uUK/Ob9uwc+iS3UL+epScXsJbr4i2c7oJp0cBCfcz4LvQZIVz8jMGYHZe9pSrU0GkSZHuwE6MbtaISYARQKq1h2zwIDAQAB",
+  "permissions": ["downloads", "storage", "webRequest", "nativeMessaging", "alarms", "cookies"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": { "service_worker": "background.mjs", "type": "module" },
+  "action": { "default_title": "Fluxion", "default_popup": "options.html" },
+  "options_ui": { "page": "options.html", "open_in_tab": true },
+  "incognito": "not_allowed"
+}

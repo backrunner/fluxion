@@ -2617,6 +2617,7 @@ dependencies = [
  "base64",
  "chrono",
  "flate2",
+ "fluxion-browser",
  "fluxion-core",
  "fluxion-runtime",
  "gpui",
@@ -2634,6 +2635,19 @@ dependencies = [
  "tokio",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "fluxion-browser"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "fluxion-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "url",
 ]
 
 [[package]]

@@ -252,5 +252,8 @@
   "native.updateAvailable": "更新があります",
   "native.downloadLimitUnit": "ダウンロード上限（KB/s）",
   "native.uploadLimitUnit": "アップロード上限（KB/s）",
-  "native.saveTransferSettings": "転送設定を保存"
+  "native.saveTransferSettings": "転送設定を保存",
+  "native.browserDownload": "ブラウザーからリンクと認証情報を受信しました。保存先を選んで追加してください。キャンセルするとブラウザーで続行します。",
+  "native.browserCredentialsCleared": "リンクが変更されたため、引き継いだ認証情報を消去しました。",
+  "native.browserDisconnected": "ブラウザーとの接続が切れました。キャンセルしてブラウザーから再送してください。"
 }

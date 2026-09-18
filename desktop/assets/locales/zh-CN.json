@@ -252,5 +252,8 @@
   "native.updateAvailable": "有可用更新",
   "native.downloadLimitUnit": "下载限速（KB/s）",
   "native.uploadLimitUnit": "上传限速（KB/s）",
-  "native.saveTransferSettings": "保存传输设置"
+  "native.saveTransferSettings": "保存传输设置",
+  "native.browserDownload": "已从浏览器带入下载链接和凭据。请选择保存位置并确认添加；取消后继续由浏览器下载。",
+  "native.browserCredentialsCleared": "链接已修改，继承的凭据已清除。",
+  "native.browserDisconnected": "浏览器连接已断开，请取消并从浏览器重新发送下载。"
 }

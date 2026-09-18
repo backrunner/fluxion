@@ -227,11 +227,9 @@ impl TaskCredentials {
                 .iter()
                 .map(|header| HeaderPair {
                     name: header.name.clone(),
-                    value: if is_sensitive_header(&header.name) {
-                        "<redacted>".to_string()
-                    } else {
-                        header.value.clone()
-                    },
+                    // Anything deliberately placed in SecretStore is private,
+                    // including Referer URLs and arbitrary browser auth headers.
+                    value: "<redacted>".to_string(),
                 })
                 .collect(),
             username: self.username.clone(),

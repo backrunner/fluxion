@@ -252,5 +252,8 @@
   "native.updateAvailable": "Update available",
   "native.downloadLimitUnit": "Download limit (KB/s)",
   "native.uploadLimitUnit": "Upload limit (KB/s)",
-  "native.saveTransferSettings": "Save transfer settings"
+  "native.saveTransferSettings": "Save transfer settings",
+  "native.browserDownload": "Download link and credentials received from your browser. Choose a save location and add the task, or cancel to continue in the browser.",
+  "native.browserCredentialsCleared": "The link changed. Inherited credentials have been cleared.",
+  "native.browserDisconnected": "The browser disconnected. Cancel and send the download again from your browser."
 }
