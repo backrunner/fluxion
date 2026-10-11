@@ -16,6 +16,7 @@ pub enum Action {
     Delete(bool),
     Open,
     Reveal,
+    OpenFolder,
 }
 
 pub enum Command {
@@ -31,6 +32,7 @@ pub enum Command {
     Limits(TaskId, TaskRateLimit),
     Preview(u64, String),
     Preferences(crate::model::Preferences),
+    Document(bool),
 }
 
 pub enum Message {
@@ -50,7 +52,9 @@ pub enum Message {
         bool,
         std::result::Result<Option<crate::updater::Release>, String>,
     ),
+    #[cfg(not(feature = "app-store"))]
     UpdateProgress(u64, Option<u64>),
+    #[cfg(not(feature = "app-store"))]
     UpdateVerifying,
     UpdateReady(crate::updater::PreparedUpdate),
     UpdateError(String),
@@ -64,6 +68,9 @@ pub struct Backend {
 }
 
 pub fn data_dir() -> PathBuf {
+    #[cfg(feature = "app-store")]
+    return crate::sandbox::data_dir();
+    #[cfg(not(feature = "app-store"))]
     std::env::var_os("FLUXION_DATA_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
@@ -112,7 +119,8 @@ impl Backend {
                 }
             });
             // Preview/test databases do not claim the production browser bridge.
-            let browser_bridge = if data == data_dir()
+            let browser_bridge = if !cfg!(feature = "app-store")
+                && data == data_dir()
                 && (std::env::var_os("FLUXION_DATA_DIR").is_none()
                     || std::env::var_os("FLUXION_BROWSER_DIR").is_some())
             {
@@ -322,38 +330,21 @@ async fn execute(
                 .await?;
         }
         Command::Act(ids, action) => {
+            let batch = ids.len() > 1;
+            let mut failed = 0;
             for id in ids {
-                match action {
-                    Action::Start => core.start_task(id).await?,
-                    Action::Pause => core.pause_task(id).await?,
-                    Action::Stop => core.stop_task(id).await?,
-                    Action::Trash => {
-                        if let Some(detail) = core.get_task(id).await?
-                            && crate::model::can_stop(&detail.task.state)
-                        {
-                            core.stop_task(id).await?;
-                        }
-                    }
-                    Action::Restore => (),
-                    Action::Delete(files) => core.delete_task(id, files).await?,
-                    Action::Open | Action::Reveal => {
-                        let detail = core
-                            .get_task(id)
-                            .await?
-                            .ok_or_else(|| anyhow::anyhow!("Task no longer exists"))?;
-                        let path = output_path(&detail)?;
-                        let mut process = tokio::process::Command::new("/usr/bin/open");
-                        if action == Action::Reveal {
-                            process.arg("-R");
-                        }
-                        if !process.arg("--").arg(path).status().await?.success() {
-                            anyhow::bail!("Finder could not open this file");
-                        }
-                    }
+                match act_one(core, id, action).await {
+                    Ok(()) => tx.send(Message::Acted(id, action)).await?,
+                    Err(error) if !batch => return Err(error),
+                    Err(_) => failed += 1,
                 }
-                tx.send(Message::Acted(id, action)).await?;
             }
+            anyhow::ensure!(
+                failed == 0,
+                "{failed} task(s) could not be processed. Other tasks were processed. Retry the failed tasks individually."
+            );
         }
+
         Command::Settings(settings) => {
             core.update_settings(settings).await?;
             tx.send(Message::Saved).await?;
@@ -368,11 +359,62 @@ async fn execute(
             tx.send(Message::Saved).await?;
         }
         Command::Preferences(prefs) => prefs.save(data).await?,
+        Command::Document(privacy) => {
+            let executable = std::env::current_exe()?;
+            let contents = executable
+                .parent()
+                .and_then(Path::parent)
+                .ok_or_else(|| anyhow::anyhow!("Application resources are unavailable"))?;
+            let resource = contents.join("Resources").join(if privacy {
+                "Privacy.md"
+            } else {
+                "ThirdPartyNotices.md"
+            });
+            anyhow::ensure!(
+                resource.is_file(),
+                "This document is available in the packaged application"
+            );
+            crate::sandbox::open(&resource, false)?;
+        }
         Command::Preview(..)
         | Command::CheckUpdate(..)
         | Command::DownloadUpdate(..)
         | Command::InstallUpdate(_) => {
             unreachable!()
+        }
+    }
+    Ok(())
+}
+
+async fn act_one(core: &Arc<FluxionCore>, id: TaskId, action: Action) -> anyhow::Result<()> {
+    match action {
+        Action::Start => core.start_task(id).await?,
+        Action::Pause => core.pause_task(id).await?,
+        Action::Stop => core.stop_task(id).await?,
+        Action::Trash => {
+            if let Some(detail) = core.get_task(id).await?
+                && crate::model::can_stop(&detail.task.state)
+            {
+                core.stop_task(id).await?;
+            }
+        }
+        Action::Restore => (),
+        Action::Delete(files) => core.delete_task(id, files).await?,
+        Action::OpenFolder => {
+            let detail = core
+                .get_task(id)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Task no longer exists"))?;
+            let directory = detail.task.save_dir.canonicalize()?;
+            anyhow::ensure!(directory.is_dir(), "The download directory is unavailable");
+            crate::sandbox::open(&directory, false)?;
+        }
+        Action::Open | Action::Reveal => {
+            let detail = core
+                .get_task(id)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Task no longer exists"))?;
+            crate::sandbox::open(&output_path(&detail)?, action == Action::Reveal)?;
         }
     }
     Ok(())

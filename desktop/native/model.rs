@@ -23,13 +23,16 @@ impl Default for Preferences {
             trash: BTreeSet::new(),
             detail_open: true,
             update_channel: Default::default(),
-            auto_check_updates: true,
+            auto_check_updates: !cfg!(feature = "app-store"),
         }
     }
 }
 impl Preferences {
     pub async fn load_with_legacy(data: &Path) -> Self {
-        if data.join("native-ui.json").exists() || std::env::var_os("FLUXION_DATA_DIR").is_some() {
+        if cfg!(feature = "app-store")
+            || data.join("native-ui.json").exists()
+            || std::env::var_os("FLUXION_DATA_DIR").is_some()
+        {
             return Self::load(data);
         }
         let Some(home) = std::env::var_os("HOME") else {

@@ -32,7 +32,10 @@ pub struct Workspace {
     settings_open: bool,
     selected: Option<TaskId>,
     checked: BTreeSet<TaskId>,
+    selection_mode: bool,
     detail: Option<TaskDetail>,
+    detail_panel: crate::ui_style::CollapseState,
+    detail_limits: crate::ui_style::CollapseState,
     bt: Option<BtStateSnapshot>,
     search: Entity<InputState>,
     focus: FocusHandle,
@@ -50,6 +53,8 @@ pub struct Workspace {
     subscriptions: Vec<Subscription>,
     last_bt: Instant,
     list_scroll: UniformListScrollHandle,
+    detail_scroll: ScrollHandle,
+    settings_scroll: ScrollHandle,
 }
 
 impl Workspace {
@@ -62,7 +67,7 @@ impl Workspace {
         let search = cx.new(|cx| {
             InputState::new(window, cx).placeholder(t(&preferences.locale, "list.search"))
         });
-        if preferences.auto_check_updates {
+        if !cfg!(feature = "app-store") && preferences.auto_check_updates {
             let _ = backend
                 .commands
                 .try_send(Command::CheckUpdate(preferences.update_channel, false));
@@ -110,7 +115,10 @@ impl Workspace {
             settings_open: false,
             selected: None,
             checked: Default::default(),
+            selection_mode: false,
             detail: None,
+            detail_panel: Default::default(),
+            detail_limits: Default::default(),
             bt: None,
             search,
             focus,
@@ -128,6 +136,8 @@ impl Workspace {
             subscriptions,
             last_bt: Instant::now(),
             list_scroll: UniformListScrollHandle::new(),
+            detail_scroll: ScrollHandle::new(),
+            settings_scroll: ScrollHandle::new(),
         }
     }
     pub fn observe_root(&mut self, root: &Entity<Root>, cx: &mut Context<Self>) {
@@ -138,6 +148,11 @@ impl Workspace {
     }
     fn tr(&self, key: &str) -> String {
         t(&self.preferences.locale, key)
+    }
+    #[cfg(feature = "app-store")]
+    pub fn show_error(&mut self, error: String, cx: &mut Context<Self>) {
+        self.error = error;
+        cx.notify();
     }
     fn send(&mut self, command: Command, cx: &mut Context<Self>) {
         if self.backend.commands.try_send(command).is_err() {
@@ -157,6 +172,9 @@ impl Workspace {
         self.send(Command::Preferences(self.preferences.clone()), cx);
     }
     fn check_for_updates(&mut self, manual: bool, cx: &mut Context<Self>) {
+        if cfg!(feature = "app-store") {
+            return;
+        }
         if self.update_status.installing() || self.update_prepared.is_some() {
             return;
         }
@@ -207,9 +225,11 @@ impl Workspace {
                     }
                 }
             }
+            #[cfg(not(feature = "app-store"))]
             Message::UpdateProgress(done, total) => {
                 self.update_status = UpdateStatus::Downloading(done, total);
             }
+            #[cfg(not(feature = "app-store"))]
             Message::UpdateVerifying => self.update_status = UpdateStatus::Verifying,
             Message::UpdateReady(prepared) => {
                 self.update_status = UpdateStatus::Ready;
@@ -431,6 +451,7 @@ impl Workspace {
     fn select(&mut self, id: TaskId, window: &mut Window, cx: &mut Context<Self>) {
         if self.selected != Some(id) {
             self.detail = None;
+            self.detail_limits = Default::default();
             self.bt = None;
         }
         self.selected = Some(id);
@@ -451,6 +472,7 @@ impl Workspace {
         self.filter = filter;
         self.settings_open = false;
         self.checked.clear();
+        self.selection_mode = false;
         if let Some(id) = self.selected
             && !self
                 .store
@@ -670,6 +692,8 @@ impl Workspace {
         if window.has_active_dialog(cx) {
             return;
         }
+        self.selection_mode = false;
+        self.checked.clear();
         if self.settings_form.is_none() {
             let form = cx.new(|cx| {
                 Form::new(
@@ -709,6 +733,14 @@ impl Render for Workspace {
         let modal = Root::render_dialog_layer(window, cx);
         let notifications = Root::render_notification_layer(window, cx);
         let narrow = window.viewport_size().width < px(1020.);
+        self.detail_panel.set_open(
+            self.preferences.detail_open && self.selected.is_some() && !self.settings_open,
+        );
+        let detail_progress = self.detail_panel.frame(window);
+        let detail_visible = self.detail_panel.open || detail_progress > 0.;
+        let detail_width = window.viewport_size().width
+            - px(208. + 12.)
+            - if narrow { px(0.) } else { px(384. + 12.) };
         div()
             .id("workspace")
             .key_context("Downloads")
@@ -730,25 +762,38 @@ impl Render for Workspace {
             .on_action(
                 cx.listener(|this, _: &crate::Settings, window, cx| this.open_settings(window, cx)),
             )
-            .on_action(
-                cx.listener(|this, _: &crate::Refresh, _, cx| this.send(Command::Refresh, cx)),
-            )
             .on_action(cx.listener(|this, _: &crate::ToggleDetail, _, cx| {
                 this.preferences.detail_open = !this.preferences.detail_open;
                 this.persist(cx);
             }))
             .on_action(cx.listener(|this, _: &crate::SelectAll, window, cx| {
-                if !window.has_focused_input(cx) {
+                if !this.settings_open
+                    && !window.has_active_dialog(cx)
+                    && !window.has_focused_input(cx)
+                {
                     this.checked = this.visible(cx).iter().map(|t| t.id).collect();
+                    this.selection_mode = !this.checked.is_empty();
+                    cx.notify();
+                }
+            }))
+            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                if event.keystroke.key == "escape"
+                    && this.selection_mode
+                    && !window.has_active_dialog(cx)
+                    && !window.has_focused_input(cx)
+                {
+                    this.selection_mode = false;
+                    this.checked.clear();
+                    cx.stop_propagation();
                     cx.notify();
                 }
             }))
             .on_action(cx.listener(|this, _: &crate::Remove, window, cx| {
                 if !window.has_focused_input(cx) {
-                    let ids = if this.checked.is_empty() {
-                        this.selected.into_iter().collect()
-                    } else {
+                    let ids = if this.selection_mode {
                         this.checked.iter().copied().collect()
+                    } else {
+                        this.selected.into_iter().collect()
                     };
                     this.act(
                         ids,
@@ -799,42 +844,54 @@ impl Render for Workspace {
                             .pr_3()
                             .gap_3()
                             .child(if self.settings_open {
-                                self.settings_pane(cx)
+                                self.settings_pane(window, cx)
                             } else {
                                 h_flex()
                                     .h_full()
                                     .min_w_0()
                                     .flex_1()
-                                    .gap_3()
-                                    .child(self.task_list(window, cx))
-                                    .when(self.preferences.detail_open && !narrow, |v| {
-                                        v.child(self.detail_pane(cx))
+                                    .child(self.task_list(detail_progress, window, cx))
+                                    .when(detail_visible && !narrow, |v| {
+                                        v.child(
+                                            div()
+                                                .h_full()
+                                                .w((detail_width + px(12.)) * detail_progress)
+                                                .flex_shrink_0()
+                                                .overflow_hidden()
+                                                .child(
+                                                    h_flex()
+                                                        .h_full()
+                                                        .w(detail_width + px(12.))
+                                                        .pl_3()
+                                                        .child(self.detail_pane(window, cx)),
+                                                ),
+                                        )
                                     })
                                     .into_any_element()
                             }),
                     ),
             )
-            .when(
-                narrow
-                    && !self.settings_open
-                    && self.preferences.detail_open
-                    && self.selected.is_some(),
-                |v| {
-                    v.child(
-                        div()
-                            .occlude()
-                            .absolute()
-                            .top_3()
-                            .bottom_3()
-                            .left(px(208.))
-                            .right_3()
-                            .rounded_xl()
-                            .bg(cx.theme().background)
-                            .shadow_lg()
-                            .child(self.detail_pane(cx)),
-                    )
-                },
-            )
+            .when(narrow && !self.settings_open && detail_visible, |v| {
+                v.child(
+                    div()
+                        .occlude()
+                        .absolute()
+                        .top_3()
+                        .bottom_3()
+                        .right_3()
+                        .w(detail_width * detail_progress)
+                        .overflow_hidden()
+                        .rounded_xl()
+                        .bg(cx.theme().background)
+                        .shadow_lg()
+                        .child(
+                            h_flex()
+                                .h_full()
+                                .w(detail_width)
+                                .child(self.detail_pane(window, cx)),
+                        ),
+                )
+            })
             .when(!self.error.is_empty() && self.form.is_none(), |v| {
                 v.child(
                     h_flex()
@@ -951,7 +1008,7 @@ fn metric(label: String, value: String, cx: &App) -> Div {
     v_flex()
         .flex_1()
         .min_w_0()
-        .gap_2()
+        .gap(px(6.))
         .child(
             div()
                 .text_xs()
@@ -978,7 +1035,7 @@ fn info(label: String, value: String, cx: &App) -> Div {
         )
         .child(div().text_sm().overflow_hidden().child(value))
 }
-fn empty(icon: &str, title: String, copy: String, cx: &App) -> AnyElement {
+fn empty(icon: &str, title: String, copy: String, cx: &App) -> Div {
     v_flex()
         .flex_1()
         .size_full()
@@ -1007,7 +1064,6 @@ fn empty(icon: &str, title: String, copy: String, cx: &App) -> AnyElement {
                 .max_w(px(260.))
                 .child(copy),
         )
-        .into_any_element()
 }
 
 #[cfg(test)]
@@ -1213,6 +1269,96 @@ mod tests {
         cx.run_until_parked();
     }
     #[gpui::test]
+    fn live_events_update_list_speed_and_filters_without_refresh(cx: &mut gpui::TestAppContext) {
+        use crate::{backend::Command, model::Filter};
+        use fluxion_core::{CoreEvent, TaskProgress, TaskSpeed, TaskState};
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            crate::apply_theme("light", None, cx);
+        });
+        let (commands, rx) = async_channel::bounded(32);
+        let (tx, messages) = async_channel::bounded(32);
+        let (_done, stopped) = async_channel::bounded(1);
+        let mut workspace = None;
+        cx.add_window(|window, cx| {
+            let view = cx.new(|cx| {
+                Workspace::new(
+                    Backend {
+                        commands,
+                        messages,
+                        stopped,
+                    },
+                    Preferences {
+                        auto_check_updates: false,
+                        ..Default::default()
+                    },
+                    window,
+                    cx,
+                )
+            });
+            workspace = Some(view.clone());
+            Root::new(view, window, cx)
+        });
+        let view = workspace.unwrap();
+        tx.try_send(Message::Snapshot(vec![], SettingsSnapshot::default()))
+            .unwrap();
+        cx.run_until_parked();
+        let task = crate::tests::task(TaskState::Queued);
+        let id = task.id;
+        tx.try_send(Message::Event(CoreEvent::TaskCreated(task)))
+            .unwrap();
+        tx.try_send(Message::Event(CoreEvent::TaskStateChanged {
+            task_id: id,
+            state: TaskState::Downloading,
+        }))
+        .unwrap();
+        tx.try_send(Message::Event(CoreEvent::TaskProgress(TaskProgress {
+            task_id: id,
+            downloaded_bytes: 400,
+            uploaded_bytes: 0,
+            total_bytes: Some(1000),
+        })))
+        .unwrap();
+        tx.try_send(Message::Event(CoreEvent::TaskSpeed(TaskSpeed {
+            task_id: id,
+            download_bytes_per_second: 200,
+            upload_bytes_per_second: 0,
+        })))
+        .unwrap();
+        cx.run_until_parked();
+        view.update(cx, |view, cx| {
+            assert!(!view.loading);
+            view.filter = Filter::Active;
+            assert_eq!(view.visible(cx).len(), 1);
+            assert_eq!(view.store.tasks[0].downloaded_bytes, 400);
+            assert_eq!(view.store.speeds[&id], (200, 0));
+        });
+        tx.try_send(Message::Event(CoreEvent::TaskCompleted {
+            task_id: id,
+            file_path: "/tmp/fixture.bin".into(),
+        }))
+        .unwrap();
+        cx.run_until_parked();
+        view.update(cx, |view, cx| {
+            assert!(
+                view.visible(cx).is_empty(),
+                "completed tasks must leave the active filter automatically"
+            );
+            view.filter = Filter::Completed;
+            assert_eq!(view.visible(cx).len(), 1);
+            assert_eq!(view.store.tasks[0].downloaded_bytes, 1000);
+            assert!(!view.store.speeds.contains_key(&id));
+        });
+        while let Ok(command) = rx.try_recv() {
+            assert!(
+                !matches!(command, Command::Refresh),
+                "live events must not require a manual snapshot"
+            );
+        }
+        drop(tx);
+        cx.run_until_parked();
+    }
+    #[gpui::test]
     fn root_dialog_changes_redraw_workspace(cx: &mut gpui::TestAppContext) {
         use std::{cell::Cell, rc::Rc};
         cx.update(|cx| {
@@ -1276,6 +1422,7 @@ mod tests {
             "Closing a root dialog must remove the workspace overlay"
         );
     }
+    #[cfg(not(feature = "app-store"))]
     #[gpui::test]
     fn startup_checks_once_and_manual_checks_remain_available(cx: &mut gpui::TestAppContext) {
         use super::{Channel, Command};
@@ -1325,6 +1472,7 @@ mod tests {
             assert!(rx.try_recv().is_err());
         }
     }
+    #[cfg(not(feature = "app-store"))]
     #[gpui::test]
     fn channel_switch_ignores_stale_results_and_checks_do_not_repeat(
         cx: &mut gpui::TestAppContext,

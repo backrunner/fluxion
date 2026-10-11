@@ -2,9 +2,11 @@ mod backend;
 mod form;
 mod i18n;
 mod model;
+mod sandbox;
 #[cfg(test)]
 mod tests;
 mod ui;
+mod ui_style;
 mod updater;
 
 use gpui::*;
@@ -59,7 +61,6 @@ actions!(
         NewDownload,
         Search,
         ToggleDetail,
-        Refresh,
         Settings,
         SelectAll,
         Remove,
@@ -70,6 +71,8 @@ actions!(
 );
 
 fn main() -> anyhow::Result<()> {
+    #[cfg(feature = "app-store")]
+    let file_access_error = sandbox::restore().err().map(|e| e.to_string());
     let data = backend::data_dir();
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -92,7 +95,6 @@ fn main() -> anyhow::Result<()> {
             KeyBinding::new("cmd-q", Quit, None),
             KeyBinding::new("cmd-n", NewDownload, None),
             KeyBinding::new("cmd-f", Search, None),
-            KeyBinding::new("cmd-r", Refresh, None),
             KeyBinding::new("cmd-,", Settings, None),
             KeyBinding::new("cmd-i", ToggleDetail, None),
             KeyBinding::new("cmd-a", SelectAll, Some("Downloads")),
@@ -112,10 +114,7 @@ fn main() -> anyhow::Result<()> {
             },
             Menu {
                 name: "File".into(),
-                items: vec![
-                    MenuItem::action("New Download…", NewDownload),
-                    MenuItem::action("Refresh", Refresh),
-                ],
+                items: vec![MenuItem::action("New Download…", NewDownload)],
             },
             Menu {
                 name: "View".into(),
@@ -140,6 +139,10 @@ fn main() -> anyhow::Result<()> {
             },
             move |window, cx| {
                 let view = cx.new(|cx| ui::Workspace::new(backend, preferences, window, cx));
+                #[cfg(feature = "app-store")]
+                if let Some(error) = file_access_error {
+                    view.update(cx, |view, cx| view.show_error(error, cx));
+                }
                 window.on_window_should_close(cx, |_, cx| {
                     if cx.global::<Shutdown>().finished {
                         true
@@ -162,6 +165,8 @@ fn main() -> anyhow::Result<()> {
     });
     // Give Core cancellation, writer flushes and SQLite persistence time to finish.
     runtime.shutdown_timeout(std::time::Duration::from_secs(15));
+    #[cfg(feature = "app-store")]
+    sandbox::clear();
     Ok(())
 }
 
@@ -175,9 +180,10 @@ pub fn apply_theme(appearance: &str, window: Option<&mut Window>, cx: &mut App) 
     let dark = Theme::global(cx).is_dark();
     let theme = Theme::global_mut(cx);
     theme.font_size = px(16.);
-    theme.radius = px(8.);
+    theme.font_family = ".SystemUIFont".into();
+    theme.radius = px(6.);
     theme.radius_lg = px(12.);
-    theme.shadow = false;
+    theme.shadow = true;
     theme.primary = rgb(if dark { 0xf5a17c } else { 0xb74e2d }).into();
     theme.primary_hover = rgb(if dark { 0xffb597 } else { 0xa44021 }).into();
     theme.primary_active = rgb(0xad4725).into();
@@ -190,6 +196,8 @@ pub fn apply_theme(appearance: &str, window: Option<&mut Window>, cx: &mut App) 
     theme.muted_foreground = rgb(if dark { 0x9da5b3 } else { 0x697383 }).into();
     theme.border = rgb(if dark { 0x30353e } else { 0xe3e7ed }).into();
     theme.input = theme.border;
+    theme.switch = rgb(if dark { 0x454b55 } else { 0xc8cdd4 }).into();
+    theme.switch_thumb = rgb(0xffffff).into();
     theme.secondary = rgb(if dark { 0x272b33 } else { 0xf3f5f8 }).into();
     theme.secondary_hover = rgb(if dark { 0x333944 } else { 0xe8ecf2 }).into();
     theme.secondary_foreground = theme.foreground;

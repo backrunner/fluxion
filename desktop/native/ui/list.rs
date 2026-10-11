@@ -1,7 +1,39 @@
 use super::*;
+use crate::ui_style::{control, scroll_mask, segment, segments};
 use gpui_component::menu::{DropdownMenu, PopupMenuItem};
+use gpui_component::tooltip::Tooltip;
 
 const LIST_CONTENT_INSET: f32 = 24.;
+const LIST_HEADER_HEIGHT: f32 = 60.;
+const LIST_SEARCH_HEIGHT: f32 = 32.;
+const LIST_SEARCH_BOTTOM_INSET: f32 = 12.;
+const LIST_FILTER_HEIGHT: f32 = 32.;
+const LIST_BATCH_HEIGHT: f32 = 60.;
+
+fn ellipsize_task_name(name: &str, width: Pixels, cx: &App) -> SharedString {
+    let mut name_font = font(".SystemUIFont");
+    name_font.weight = FontWeight::MEDIUM;
+    cx.text_system()
+        .line_wrapper(name_font, px(14.))
+        .truncate_line(
+            name.to_owned().into(),
+            width.max(px(0.)),
+            "…",
+            &mut Vec::new(),
+        )
+}
+
+fn batch_targets(
+    tasks: &[TaskSummary],
+    selection_mode: bool,
+    checked: &BTreeSet<TaskId>,
+) -> Vec<TaskId> {
+    tasks
+        .iter()
+        .filter(|task| !selection_mode || checked.contains(&task.id))
+        .map(|task| task.id)
+        .collect()
+}
 
 impl Workspace {
     pub(super) fn icon_button(&self, id: &'static str, icon: &str, label: &str) -> Button {
@@ -15,11 +47,11 @@ impl Workspace {
             .tooltip(self.tr(label))
     }
     pub(super) fn action_button(&self, id: &'static str, icon: &str, label: &str) -> Button {
-        Button::new(id).h(px(36.)).px_3().child(
+        control(id).h(px(32.)).child(
             h_flex()
                 .gap_2()
-                .text_size(px(14.))
-                .child(icon_view(icon))
+                .text_size(px(13.))
+                .child(icon_view(icon).size(px(16.)))
                 .child(self.tr(label)),
         )
     }
@@ -37,21 +69,38 @@ impl Workspace {
         } else {
             cx.theme().muted_foreground
         };
+        // Sidebar states need more contrast than inset surfaces on the white
+        // content pane. Keep selection visible when the pointer enters it.
+        let selected_background = rgb(if cx.theme().is_dark() {
+            0x303e50
+        } else {
+            0xcfdbe9
+        });
+        let hover_background = rgb(match (cx.theme().is_dark(), selected) {
+            (false, false) => 0xdce3ed,
+            (false, true) => 0xc1cfe1,
+            (true, false) => 0x252e3b,
+            (true, true) => 0x3d4e64,
+        });
         h_flex()
             .id(id)
-            .h(px(44.))
+            .h(px(36.))
             .px_3()
-            .gap_3()
-            .rounded_xl()
+            .gap_2p5()
+            .rounded(px(7.))
             .cursor_pointer()
-            .when(selected, |v| v.bg(selected_color(cx)))
-            .hover(|v| v.bg(inset_color(cx)))
-            .child(icon_view(icon).text_color(if selected { cx.theme().primary } else { color }))
+            .when(selected, |v| v.bg(selected_background))
+            .hover(move |v| v.bg(hover_background))
+            .child(icon_view(icon).size(px(18.)).text_color(if selected {
+                cx.theme().primary
+            } else {
+                color
+            }))
             .child(
                 div()
                     .flex_1()
-                    .text_size(px(14.))
-                    .font_medium()
+                    .text_size(px(13.))
+                    .when(selected, |label| label.font_medium())
                     .text_color(color)
                     .child(self.tr(label)),
             )
@@ -81,18 +130,30 @@ impl Workspace {
             .flex_shrink_0()
             .child(
                 div()
+                    .w_full()
                     .h(px(64.))
-                    .window_control_area(WindowControlArea::Drag),
+                    .flex_shrink_0()
+                    .window_control_area(WindowControlArea::Drag)
+                    .child(
+                        h_flex().h(px(50.)).pl(px(96.)).child(
+                            div()
+                                .text_size(px(14.))
+                                .font_semibold()
+                                .text_color(cx.theme().muted_foreground)
+                                .child("Fluxion"),
+                        ),
+                    ),
             )
             .child(
                 v_flex()
                     .px_3()
-                    .gap_2()
+                    .gap_1()
                     .child(
                         div()
                             .px_3()
                             .pb_2()
                             .text_xs()
+                            .font_medium()
                             .text_color(cx.theme().muted_foreground)
                             .child(self.tr("native.library")),
                     )
@@ -171,8 +232,8 @@ impl Workspace {
         let transferring = total.0 > 0 || total.1 > 0;
         let reading = |label: String, value: u64, icon: &str, tint: Hsla| {
             h_flex()
-                .gap_3()
-                .child(icon_view(icon).text_color(tint))
+                .gap_2()
+                .child(icon_view(icon).size(px(16.)).text_color(tint))
                 .child(
                     div()
                         .flex_1()
@@ -180,15 +241,17 @@ impl Workspace {
                         .text_color(cx.theme().muted_foreground)
                         .child(label),
                 )
-                .child(div().text_size(px(14.)).font_medium().child(speed(value)))
+                .child(div().text_size(px(13.)).font_medium().child(speed(value)))
         };
         v_flex()
             .mx_3()
             .mb_3()
             .p_3()
-            .gap_3()
+            .gap_2p5()
             .rounded_lg()
-            .bg(cx.theme().background)
+            .border_1()
+            .border_color(cx.theme().border.opacity(0.6))
+            .bg(cx.theme().background.opacity(0.65))
             .child(
                 h_flex()
                     .gap_2()
@@ -228,9 +291,16 @@ impl Workspace {
                 state_color(&TaskState::Completed, cx),
             ))
     }
-    pub(super) fn row(&self, task: &TaskSummary, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn row(
+        &self,
+        task: &TaskSummary,
+        pane_width: Pixels,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let id = task.id;
         let selected = self.selected == Some(id);
+        let checked = self.checked.contains(&id);
+        let highlighted = selected || checked;
         let color = state_color(&task.state, cx);
         let rate = self.store.speeds.get(&id).copied().unwrap_or_default();
         let progress = percent(task.downloaded_bytes, task.total_bytes);
@@ -238,6 +308,14 @@ impl Workspace {
             .file_name
             .clone()
             .unwrap_or_else(|| self.tr("new.resolving"));
+        let file_glyph = file_icon(&name);
+        // Reserve both row insets, the action, icon and gaps before shaping.
+        // GPUI's flex text can otherwise be clipped before ellipsis is measured.
+        let name_width = (pane_width
+            - px(48. + 32. + 12. + 20. + 8.)
+            - if self.selection_mode { px(36.) } else { px(0.) })
+        .max(px(0.));
+        let visible_name = ellipsize_task_name(&name, name_width, cx);
         let primary = if active(&task.state) {
             TaskAction::Pause
         } else if task.state == TaskState::Completed {
@@ -266,40 +344,34 @@ impl Workspace {
             .gap(px(4.))
             .child(
                 h_flex()
+                    .w_full()
+                    .min_w_0()
                     .h(px(24.))
                     .gap_2()
-                    .child(icon_view(file_icon(&name)).text_color(if selected {
-                        cx.theme().primary
-                    } else {
-                        cx.theme().muted_foreground
-                    }))
                     .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .text_size(px(14.))
-                            .font_medium()
-                            .truncate()
-                            .child(name),
+                        icon_view(file_glyph)
+                            .size(px(20.))
+                            .flex_shrink_0()
+                            .text_color(if selected {
+                                cx.theme().primary
+                            } else {
+                                cx.theme().muted_foreground
+                            }),
                     )
                     .child(
-                        h_flex()
-                            .size(px(24.))
-                            .flex_shrink_0()
-                            .justify_center()
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                            .child(
-                                Checkbox::new(("check", id.as_u128() as usize))
-                                    .checked(self.checked.contains(&id))
-                                    .on_click(cx.listener(move |this, checked, _, cx| {
-                                        if *checked {
-                                            this.checked.insert(id);
-                                        } else {
-                                            this.checked.remove(&id);
-                                        }
-                                        cx.notify();
-                                    })),
-                            ),
+                        div()
+                            .id(("task-name", id.as_u128() as usize))
+                            .flex_1()
+                            .min_w_0()
+                            .max_w(name_width)
+                            .text_size(px(14.))
+                            .font_medium()
+                            .whitespace_nowrap()
+                            .overflow_hidden()
+                            .child(visible_name)
+                            .tooltip(move |window, cx| {
+                                Tooltip::new(name.clone()).build(window, cx)
+                            }),
                     ),
             )
             .child(
@@ -331,7 +403,18 @@ impl Workspace {
                                 .flex_shrink_0()
                                 .text_color(cx.theme().muted_foreground)
                                 .child(if active(&task.state) {
-                                    speed(rate.0)
+                                    if task.state == TaskState::Downloading
+                                        && rate.0 > 0
+                                        && task.total_bytes.is_some()
+                                    {
+                                        format!(
+                                            "{} · {}",
+                                            speed(rate.0),
+                                            eta(task.downloaded_bytes, task.total_bytes, rate.0)
+                                        )
+                                    } else {
+                                        speed(rate.0)
+                                    }
                                 } else {
                                     format!("{:.0}%", progress * 100.)
                                 }),
@@ -349,17 +432,18 @@ impl Workspace {
                 h_flex()
                     .id(SharedString::from(id.to_string()))
                     .h_full()
+                    .items_center()
                     .px_3()
                     .py(px(10.))
                     .gap_3()
                     .rounded_lg()
-                    .bg(if selected {
+                    .bg(if highlighted {
                         selected_color(cx)
                     } else {
                         transparent_black()
                     })
                     .hover(|v| {
-                        v.bg(if selected {
+                        v.bg(if highlighted {
                             selected_color(cx)
                         } else {
                             inset_color(cx)
@@ -367,11 +451,44 @@ impl Workspace {
                     })
                     .cursor_pointer()
                     .on_click(cx.listener(move |this, event: &ClickEvent, window, cx| {
-                        if event.modifiers().platform && !this.checked.insert(id) {
-                            this.checked.remove(&id);
+                        if this.selection_mode || event.modifiers().platform {
+                            this.selection_mode = true;
+                            if !this.checked.insert(id) {
+                                this.checked.remove(&id);
+                            }
+                            window.focus(&this.focus);
+                            cx.notify();
+                        } else {
+                            this.select(id, window, cx);
                         }
-                        this.select(id, window, cx);
                     }))
+                    .when(self.selection_mode, |row| {
+                        row.child(
+                            h_flex()
+                                .w(px(24.))
+                                .h(px(32.))
+                                .flex_shrink_0()
+                                .justify_center()
+                                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                                .child(
+                                    Checkbox::new(("check", id.as_u128() as usize))
+                                        .w(px(24.))
+                                        .h(px(32.))
+                                        .items_center()
+                                        .justify_center()
+                                        .checked(checked)
+                                        .on_click(cx.listener(move |this, checked, _, cx| {
+                                            cx.stop_propagation();
+                                            if *checked {
+                                                this.checked.insert(id);
+                                            } else {
+                                                this.checked.remove(&id);
+                                            }
+                                            cx.notify();
+                                        })),
+                                ),
+                        )
+                    })
                     .child(information)
                     .child(
                         div()
@@ -386,7 +503,13 @@ impl Workspace {
                                     .when(selected, |button| button.bg(cx.theme().background))
                                     .child(icon_view(icon))
                                     .tooltip(self.tr(hint))
-                                    .disabled(self.busy || self.filter == Filter::Trash)
+                                    .disabled(
+                                        self.busy
+                                            || self.filter == Filter::Trash
+                                            || !(active(&task.state)
+                                                || can_start(&task.state)
+                                                || task.state == TaskState::Completed),
+                                    )
                                     .on_click(cx.listener(move |this, _, window, cx| {
                                         this.act(vec![id], primary, window, cx)
                                     })),
@@ -395,19 +518,26 @@ impl Workspace {
             )
             .into_any_element()
     }
-    pub(super) fn task_list(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn task_list(
+        &self,
+        detail_progress: f32,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let tasks = self.visible(cx);
         let count = tasks.len();
         let trash = self.filter == Filter::Trash;
-        let ids = if self.checked.is_empty() {
-            tasks.iter().map(|t| t.id).collect::<Vec<_>>()
-        } else {
-            tasks
-                .iter()
-                .filter(|t| self.checked.contains(&t.id))
-                .map(|t| t.id)
-                .collect::<Vec<_>>()
-        };
+        // Center the empty message in the whole pane rather than just the space
+        // below its controls. Reserve enough room for wrapped copy in short windows.
+        let controls_height = px(LIST_HEADER_HEIGHT
+            + LIST_SEARCH_HEIGHT
+            + LIST_SEARCH_BOTTOM_INSET
+            + if trash { 0. } else { LIST_FILTER_HEIGHT }
+            + LIST_BATCH_HEIGHT);
+        let empty_bottom_inset = controls_height.min(
+            (window.viewport_size().height - px(24.) - controls_height - px(160.)).max(px(0.)),
+        );
+        let ids = batch_targets(&tasks, self.selection_mode, &self.checked);
         let pause = ids.clone();
         let start = ids.clone();
         let delete = ids.clone();
@@ -425,21 +555,27 @@ impl Workspace {
             .rounded_xl()
             .overflow_hidden()
             .bg(cx.theme().background);
-        if self.preferences.detail_open && window.viewport_size().width >= px(1020.) {
-            pane = pane.w(px(384.)).flex_shrink_0();
+        let available = window.viewport_size().width - px(208. + 12.);
+        let pane_width = if window.viewport_size().width >= px(1020.) {
+            available - (available - px(384.)) * detail_progress
+        } else {
+            available
+        };
+        if window.viewport_size().width >= px(1020.) {
+            pane = pane.w(pane_width).flex_shrink_0();
         } else {
             pane = pane.flex_1();
         }
         pane = pane
             .child(
                 h_flex()
-                    .h(px(60.))
+                    .h(px(LIST_HEADER_HEIGHT))
                     .px(px(LIST_CONTENT_INSET))
                     .gap_2()
                     .child(
                         div()
                             .flex_1()
-                            .text_lg()
+                            .text_size(px(17.))
                             .font_semibold()
                             .child(self.tr(if trash { "nav.trash" } else { "nav.downloads" })),
                     )
@@ -452,80 +588,95 @@ impl Workspace {
                                 this.open_form(FormKind::Create, window, cx)
                             })),
                     )
-                    .child(
-                        self.icon_button("refresh", "rotate-ccw", "common.refresh")
-                            .disabled(self.busy || self.loading)
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.loading = true;
-                                this.send(Command::Refresh, cx);
-                            })),
-                    )
-                    .child(
-                        self.icon_button("detail", "panel-right", "list.toggleDetail")
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.preferences.detail_open = !this.preferences.detail_open;
-                                this.persist(cx);
-                            })),
-                    ),
+                    .when(self.selected.is_some(), |header| {
+                        header.child(
+                            self.icon_button("detail", "panel-right", "list.toggleDetail")
+                                .size(px(32.))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.preferences.detail_open = !this.preferences.detail_open;
+                                    this.persist(cx);
+                                })),
+                        )
+                    }),
             )
             .child(
                 h_flex()
-                    .px_4()
-                    .pb_2()
-                    .gap_2()
+                    .px(px(LIST_CONTENT_INSET))
+                    .pb(px(LIST_SEARCH_BOTTOM_INSET))
                     .child(
-                        div().flex_1().min_w_0().child(
-                            Input::new(&self.search)
-                                .prefix(icon_view("search"))
-                                .h(px(36.))
-                                .appearance(false)
-                                .rounded_lg()
-                                .bg(inset_color(cx))
-                                .cleanable(true),
-                        ),
-                    )
-                    .child(
-                        Button::new("sort")
-                            .ghost()
-                            .h(px(36.))
-                            .px_2()
-                            .flex_shrink_0()
-                            .tooltip(self.tr("list.sortTasks"))
+                        h_flex()
+                            .w_full()
+                            .min_w_0()
+                            .h(px(LIST_SEARCH_HEIGHT))
+                            .rounded(px(7.))
+                            .border_1()
+                            .border_color(cx.theme().border.opacity(0.6))
+                            .bg(inset_color(cx))
                             .child(
-                                h_flex()
-                                    .gap_1()
-                                    .text_size(px(13.))
-                                    .child(sort_options[selected_sort as usize].1.clone())
-                                    .child(icon_view("chevrons-up-down")),
+                                div().flex_1().min_w_0().child(
+                                    Input::new(&self.search)
+                                        .prefix(icon_view("search").size(px(16.)))
+                                        .h(px(30.))
+                                        .text_size(px(13.))
+                                        .appearance(false)
+                                        .rounded(px(6.))
+                                        .bg(inset_color(cx))
+                                        .cleanable(true),
+                                ),
                             )
-                            .dropdown_menu_with_anchor(Corner::TopRight, move |mut menu, _, _| {
-                                for (value, label) in &sort_options {
-                                    let value = *value;
-                                    let view = sort_view.clone();
-                                    menu = menu.item(
-                                        PopupMenuItem::new(label.clone())
-                                            .checked(value == selected_sort)
-                                            .on_click(move |_, _, cx| {
-                                                let _ = view.update(cx, |this, cx| {
-                                                    this.sort = value;
-                                                    this.list_scroll
-                                                        .scroll_to_item(0, ScrollStrategy::Top);
-                                                    cx.notify();
-                                                });
-                                            }),
-                                    );
-                                }
-                                menu
-                            }),
+                            .child(
+                                div()
+                                    .w(px(1.))
+                                    .h(px(16.))
+                                    .flex_shrink_0()
+                                    .bg(cx.theme().border),
+                            )
+                            .child(
+                                control("sort")
+                                    .ghost()
+                                    .h(px(28.))
+                                    .px_2()
+                                    .mx(px(2.))
+                                    .flex_shrink_0()
+                                    .tooltip(self.tr("list.sortTasks"))
+                                    .child(
+                                        h_flex()
+                                            .gap_1p5()
+                                            .text_size(px(13.))
+                                            .child(sort_options[selected_sort as usize].1.clone())
+                                            .child(icon_view("chevrons-up-down").size(px(14.))),
+                                    )
+                                    .dropdown_menu_with_anchor(
+                                        Corner::TopRight,
+                                        move |mut menu, _, _| {
+                                            for (value, label) in &sort_options {
+                                                let value = *value;
+                                                let view = sort_view.clone();
+                                                menu = menu.item(
+                                                    PopupMenuItem::new(label.clone())
+                                                        .checked(value == selected_sort)
+                                                        .on_click(move |_, _, cx| {
+                                                            let _ = view.update(cx, |this, cx| {
+                                                                this.sort = value;
+                                                                this.list_scroll.scroll_to_item(
+                                                                    0,
+                                                                    ScrollStrategy::Top,
+                                                                );
+                                                                cx.notify();
+                                                            });
+                                                        }),
+                                                );
+                                            }
+                                            menu
+                                        },
+                                    ),
+                            ),
                     ),
             );
         if !trash {
-            let mut tabs = h_flex()
-                .mx_4()
-                .p_1()
-                .gap_1()
-                .rounded_lg()
-                .bg(inset_color(cx));
+            let mut tabs = segments(cx)
+                .h(px(LIST_FILTER_HEIGHT))
+                .mx(px(LIST_CONTENT_INSET));
             for (index, filter, key) in [
                 (0, Filter::All, "list.filter.all"),
                 (1, Filter::Active, "list.filter.active"),
@@ -534,20 +685,16 @@ impl Workspace {
                 (4, Filter::Paused, "state.Paused"),
             ] {
                 tabs = tabs.child(
-                    Button::new(("filter", index as usize))
-                        .ghost()
-                        .small()
-                        .compact()
-                        .h(px(28.))
-                        .flex_1()
-                        .when(self.filter == filter, |b| {
-                            b.bg(cx.theme().background)
-                                .text_color(cx.theme().foreground)
-                        })
-                        .label(self.tr(key))
-                        .on_click(
-                            cx.listener(move |this, _, _, cx| this.select_filter(filter, cx)),
-                        ),
+                    segment(
+                        ("filter", index as usize),
+                        self.tr(key),
+                        self.filter == filter,
+                        cx,
+                    )
+                    .compact()
+                    .h(px(28.))
+                    .flex_1()
+                    .on_click(cx.listener(move |this, _, _, cx| this.select_filter(filter, cx))),
                 );
             }
             pane = pane.child(tabs);
@@ -555,31 +702,74 @@ impl Workspace {
         pane = pane
             .child(
                 h_flex()
-                    .h(px(44.))
+                    .h(px(LIST_BATCH_HEIGHT))
                     .px(px(LIST_CONTENT_INSET))
                     .gap_2()
                     .child(
-                        div()
+                        h_flex()
                             .flex_1()
-                            .text_xs()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(if self.checked.is_empty() {
-                                self.tr("native.taskCount")
-                                    .replace("{count}", &count.to_string())
-                            } else {
-                                self.tr("list.selected")
-                                    .replace("{count}", &self.checked.len().to_string())
-                            }),
+                            .min_w_0()
+                            .gap_2()
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .truncate()
+                                    .text_xs()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(if self.selection_mode {
+                                        self.tr("list.selected")
+                                            .replace("{count}", &ids.len().to_string())
+                                    } else {
+                                        self.tr("native.taskCount")
+                                            .replace("{count}", &count.to_string())
+                                    }),
+                            )
+                            .child(
+                                control("selection-mode")
+                                    .custom(
+                                        ButtonCustomVariant::new(cx)
+                                            .color(cx.theme().secondary.opacity(0.5))
+                                            .border(cx.theme().border.opacity(0.65))
+                                            .foreground(cx.theme().foreground)
+                                            .hover(cx.theme().secondary_hover.opacity(0.65))
+                                            .active(cx.theme().secondary_hover),
+                                    )
+                                    .h(px(28.))
+                                    .px(px(10.))
+                                    .flex_shrink_0()
+                                    .child(
+                                        div()
+                                            .text_size(px(12.))
+                                            .font_weight(FontWeight::NORMAL)
+                                            .child(self.tr(if self.selection_mode {
+                                                "native.finishSelection"
+                                            } else {
+                                                "native.multiSelect"
+                                            })),
+                                    )
+                                    .disabled(tasks.is_empty() && !self.selection_mode)
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.selection_mode = !this.selection_mode;
+                                        this.checked.clear();
+                                        window.focus(&this.focus);
+                                        cx.notify();
+                                    })),
+                            ),
                     )
-                    .when(!trash, |r| {
-                        r.child(
-                            h_flex()
-                                .h(px(36.))
-                                .px(px(2.))
-                                .rounded_lg()
-                                .bg(inset_color(cx))
-                                .child(
-                                    self.icon_button("start-batch", "play", "native.startSelected")
+                    .child(
+                        h_flex()
+                            .h(px(36.))
+                            .px(px(2.))
+                            .rounded(px(7.))
+                            .bg(inset_color(cx))
+                            .when(!trash, |actions| {
+                                actions
+                                    .child(
+                                        self.icon_button(
+                                            "start-batch",
+                                            "play",
+                                            "native.startSelected",
+                                        )
                                         .size(px(32.))
                                         .disabled(
                                             self.busy
@@ -587,12 +777,23 @@ impl Workspace {
                                                     ids.contains(&t.id) && can_start(&t.state)
                                                 }),
                                         )
-                                        .on_click(cx.listener(move |this, _, window, cx| {
-                                            this.act(start.clone(), TaskAction::Start, window, cx)
-                                        })),
-                                )
-                                .child(
-                                    self.icon_button("pause-batch", "pause", "list.pauseSelected")
+                                        .on_click(
+                                            cx.listener(move |this, _, window, cx| {
+                                                this.act(
+                                                    start.clone(),
+                                                    TaskAction::Start,
+                                                    window,
+                                                    cx,
+                                                )
+                                            }),
+                                        ),
+                                    )
+                                    .child(
+                                        self.icon_button(
+                                            "pause-batch",
+                                            "pause",
+                                            "list.pauseSelected",
+                                        )
                                         .size(px(32.))
                                         .disabled(
                                             self.busy
@@ -600,12 +801,23 @@ impl Workspace {
                                                     ids.contains(&t.id) && active(&t.state)
                                                 }),
                                         )
-                                        .on_click(cx.listener(move |this, _, window, cx| {
-                                            this.act(pause.clone(), TaskAction::Pause, window, cx)
-                                        })),
-                                )
-                                .child(
-                                    self.icon_button("stop-batch", "square", "list.action.stop")
+                                        .on_click(
+                                            cx.listener(move |this, _, window, cx| {
+                                                this.act(
+                                                    pause.clone(),
+                                                    TaskAction::Pause,
+                                                    window,
+                                                    cx,
+                                                )
+                                            }),
+                                        ),
+                                    )
+                                    .child(
+                                        self.icon_button(
+                                            "stop-batch",
+                                            "square",
+                                            "list.action.stop",
+                                        )
                                         .size(px(32.))
                                         .disabled(
                                             self.busy
@@ -613,39 +825,44 @@ impl Workspace {
                                                     ids.contains(&t.id) && can_stop(&t.state)
                                                 }),
                                         )
-                                        .on_click(cx.listener(move |this, _, window, cx| {
-                                            this.act(stop.clone(), TaskAction::Stop, window, cx)
-                                        })),
-                                ),
-                        )
-                    })
-                    .child(
-                        self.icon_button(
-                            "delete-batch",
-                            "trash-2",
-                            if trash {
-                                "list.clearTrash"
-                            } else {
-                                "confirm.moveTrash"
-                            },
-                        )
-                        .size(px(32.))
-                        .text_color(cx.theme().muted_foreground)
-                        .disabled(self.busy || ids.is_empty())
-                        .on_click(cx.listener(
-                            move |this, _, window, cx| {
-                                this.act(
-                                    delete.clone(),
+                                        .on_click(
+                                            cx.listener(move |this, _, window, cx| {
+                                                this.act(stop.clone(), TaskAction::Stop, window, cx)
+                                            }),
+                                        ),
+                                    )
+                                    .child(
+                                        div().w(px(1.)).h(px(16.)).mx(px(4.)).bg(cx.theme().border),
+                                    )
+                            })
+                            .child(
+                                self.icon_button(
+                                    "delete-batch",
+                                    "trash-2",
                                     if trash {
-                                        TaskAction::Delete(false)
+                                        "list.clearTrash"
                                     } else {
-                                        TaskAction::Trash
+                                        "confirm.moveTrash"
                                     },
-                                    window,
-                                    cx,
                                 )
-                            },
-                        )),
+                                .size(px(32.))
+                                .text_color(cx.theme().muted_foreground)
+                                .disabled(self.busy || ids.is_empty())
+                                .on_click(cx.listener(
+                                    move |this, _, window, cx| {
+                                        this.act(
+                                            delete.clone(),
+                                            if trash {
+                                                TaskAction::Delete(false)
+                                            } else {
+                                                TaskAction::Trash
+                                            },
+                                            window,
+                                            cx,
+                                        )
+                                    },
+                                )),
+                            ),
                     ),
             )
             .child(if self.loading {
@@ -655,6 +872,8 @@ impl Workspace {
                     self.tr("native.loadingCopy"),
                     cx,
                 )
+                .pb(empty_bottom_inset)
+                .into_any_element()
             } else if tasks.is_empty() {
                 empty(
                     if trash { "trash-2" } else { "download" },
@@ -672,19 +891,74 @@ impl Workspace {
                     }),
                     cx,
                 )
+                .pb(empty_bottom_inset)
+                .into_any_element()
             } else {
                 let view = cx.entity();
-                uniform_list("tasks", tasks.len(), move |range, _, cx| {
-                    view.update(cx, |this, cx| {
-                        range
-                            .map(|index| this.row(&tasks[index], cx))
-                            .collect::<Vec<_>>()
+                scroll_mask(
+                    uniform_list("tasks", tasks.len(), move |range, _, cx| {
+                        view.update(cx, |this, cx| {
+                            range
+                                .map(|index| this.row(&tasks[index], pane_width, cx))
+                                .collect::<Vec<_>>()
+                        })
                     })
-                })
+                    .size_full()
+                    .track_scroll(self.list_scroll.clone()),
+                    &self.list_scroll.0.borrow().base_handle,
+                    cx.theme().background,
+                )
                 .flex_1()
-                .track_scroll(self.list_scroll.clone())
                 .into_any_element()
             });
         pane.into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{batch_targets, ellipsize_task_name};
+    use fluxion_core::TaskState;
+    use std::collections::BTreeSet;
+
+    #[gpui::test]
+    fn task_name_ellipsis_recomputes_for_narrower_and_wider_columns(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            let name =
+                "中文文件名-very-long-filename-with-size-and-protocol-aligned-on-one-line.bin";
+            let wide = ellipsize_task_name(name, gpui::px(240.), cx);
+            let narrow = ellipsize_task_name(name, gpui::px(100.), cx);
+            for visible in [&wide, &narrow] {
+                assert!(visible.ends_with('…'));
+                assert!(name.starts_with(visible.trim_end_matches('…')));
+            }
+            assert!(narrow.chars().count() < wide.chars().count());
+            assert_eq!(
+                ellipsize_task_name(name, gpui::px(4096.), cx).as_ref(),
+                name
+            );
+            assert_eq!(
+                ellipsize_task_name("中文.zip", gpui::px(240.), cx).as_ref(),
+                "中文.zip"
+            );
+        });
+    }
+
+    #[test]
+    fn clearing_last_selection_never_targets_all_tasks() {
+        let tasks = vec![
+            crate::tests::task(TaskState::Queued),
+            crate::tests::task(TaskState::Paused),
+        ];
+        let mut checked = BTreeSet::new();
+        assert_eq!(batch_targets(&tasks, false, &checked).len(), 2);
+        assert!(batch_targets(&tasks, true, &checked).is_empty());
+        checked.insert(tasks[0].id);
+        assert_eq!(batch_targets(&tasks, true, &checked), vec![tasks[0].id]);
+        checked.clear();
+        assert!(batch_targets(&tasks, true, &checked).is_empty());
+        // A checked task outside the current search/filter is not a batch target.
+        checked.insert(uuid::Uuid::new_v4());
+        assert!(batch_targets(&tasks, true, &checked).is_empty());
     }
 }

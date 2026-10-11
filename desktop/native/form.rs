@@ -1,3 +1,6 @@
+use crate::ui_style::{
+    CollapseState, collapse_card, control, preference_row, scroll_mask, separator, settings_group,
+};
 use crate::{backend::Command, i18n::t, model::bytes};
 use fluxion_core::*;
 use gpui::{prelude::*, *};
@@ -29,6 +32,8 @@ const INPUT_FIELDS: &[(&str, &str, &str, bool, bool)] = &[
     ("ratio", "fields.noLimit", "", false, false),
     ("allow", "common.onePerLine", "", true, false),
     ("deny", "common.onePerLine", "", true, false),
+    ("clients", "common.onePerLine", "", true, false),
+    ("peerids", "common.onePerLine", "", true, false),
 ];
 
 pub enum FormEvent {
@@ -47,14 +52,15 @@ pub struct Form {
     pub inputs: BTreeMap<&'static str, Entity<InputState>>,
     pub error: String,
     pub busy: bool,
-    advanced: bool,
+    advanced: CollapseState,
+    scroll: ScrollHandle,
+    preview_scroll: ScrollHandle,
     proxy: bool,
     seeding: bool,
     pub preview: Option<MagnetPreview>,
     pub preview_generation: u64,
     pub resolving: bool,
     subscriptions: Vec<Subscription>,
-    revealed: std::collections::BTreeSet<&'static str>,
     browser_source: Option<String>,
 }
 impl EventEmitter<FormEvent> for Form {}
@@ -88,20 +94,18 @@ impl Form {
             inputs,
             error: String::new(),
             busy: false,
-            advanced: false,
+            advanced: CollapseState::default(),
+            scroll: ScrollHandle::new(),
+            preview_scroll: ScrollHandle::new(),
             proxy: true,
             seeding: true,
             preview: None,
             preview_generation: 0,
             resolving: false,
             subscriptions: vec![],
-            revealed: Default::default(),
             browser_source: None,
         };
-        let directory = std::env::var_os("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_default()
-            .join("Downloads");
+        let directory = crate::sandbox::downloads_dir();
         form.set(
             "directory",
             directory.to_string_lossy().into_owned(),
@@ -126,6 +130,18 @@ impl Form {
             );
             form.set("allow", settings.bt_ip_allow.join("\n"), window, cx);
             form.set("deny", settings.bt_ip_deny.join("\n"), window, cx);
+            form.set(
+                "clients",
+                settings.bt_blocked_clients.join("\n"),
+                window,
+                cx,
+            );
+            form.set(
+                "peerids",
+                settings.bt_blocked_peer_ids.join("\n"),
+                window,
+                cx,
+            );
         }
         let source = form.inputs["source"].clone();
         form.subscriptions.push(
@@ -212,52 +228,30 @@ impl Form {
         };
         self.inputs[field].update(cx, |input, cx| input.focus(window, cx));
     }
-    fn field(&self, key: &'static str, label: &str, cx: &Context<Self>) -> AnyElement {
-        if matches!(key, "headers" | "trackers") && !self.revealed.contains(key) {
-            return v_flex()
-                .gap_1p5()
-                .flex_1()
-                .min_w_0()
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(cx.theme().muted_foreground)
-                        .child(t(&self.locale, label)),
-                )
-                .child(
-                    Button::new(SharedString::from(format!("reveal-field-{key}")))
-                        .icon(IconName::Eye)
-                        .label(t(&self.locale, "native.editProtected"))
-                        .disabled(self.busy)
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.revealed.insert(key);
-                            cx.notify();
-                        })),
-                )
-                .into_any_element();
-        }
+    fn field(&self, key: &'static str, label: &str) -> AnyElement {
         v_flex()
             .gap_1p5()
-            .flex_1()
+            .w_full()
             .min_w_0()
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(cx.theme().muted_foreground)
-                    .child(t(&self.locale, label)),
-            )
+            .child(div().text_size(px(13.)).child(t(&self.locale, label)))
             .child(
                 Input::new(&self.inputs[key])
+                    .w_full()
                     .h(px(32.))
+                    .text_size(px(13.))
                     .disabled(self.busy)
                     .when(
-                        matches!(key, "headers" | "trackers" | "allow" | "deny"),
-                        |input| input.h(px(88.)),
+                        matches!(
+                            key,
+                            "headers" | "trackers" | "allow" | "deny" | "clients" | "peerids"
+                        ),
+                        |input| input.h(px(76.)),
                     ),
             )
             .into_any_element()
     }
-    fn pick(&mut self, folder: bool, window: &mut Window, cx: &mut Context<Self>) {
+    fn pick(&mut self, field: &'static str, window: &mut Window, cx: &mut Context<Self>) {
+        let folder = field == "directory";
         let receiver = cx.prompt_for_paths(PathPromptOptions {
             files: !folder,
             directories: folder,
@@ -267,6 +261,8 @@ impl Form {
                     &self.locale,
                     if folder {
                         "new.browseFolder"
+                    } else if field == "privatekey" {
+                        "fields.privateKeyPath"
                     } else {
                         "new.chooseTorrent"
                     },
@@ -280,19 +276,20 @@ impl Form {
             {
                 let value = path.to_string_lossy().into_owned();
                 let _ = view.update_in(cx, |this, window, cx| {
-                    this.set(
-                        if folder { "directory" } else { "source" },
-                        value,
-                        window,
-                        cx,
-                    );
+                    #[cfg(feature = "app-store")]
+                    if crate::sandbox::remember(path).is_err() {
+                        this.error = t(&this.locale, "native.fileAccessDenied");
+                        cx.notify();
+                        return;
+                    }
+                    this.set(field, value, window, cx);
                     cx.notify();
                 });
             }
         })
         .detach();
     }
-    fn submit(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn submit(&mut self, cx: &mut Context<Self>) {
         if self.busy {
             return;
         }
@@ -318,7 +315,7 @@ impl Form {
             return Ok(Command::Limits(id, limits));
         }
         let trackers = parse_trackers(&self.value("trackers", cx))?;
-        if let FormKind::Settings(original) = &self.kind {
+        if matches!(&self.kind, FormKind::Settings(_)) {
             let allow = lines(&self.value("allow", cx));
             let deny = lines(&self.value("deny", cx));
             for rule in allow.iter().chain(deny.iter()) {
@@ -335,13 +332,14 @@ impl Form {
                 bt_trackers: trackers,
                 bt_ip_allow: allow,
                 bt_ip_deny: deny,
-                ..original.clone()
+                bt_blocked_clients: lines(&self.value("clients", cx)),
+                bt_blocked_peer_ids: lines(&self.value("peerids", cx)),
             }));
         }
         let values = self
             .inputs
-            .iter()
-            .map(|(key, _)| (*key, self.value(key, cx)))
+            .keys()
+            .map(|key| (*key, self.value(key, cx)))
             .collect();
         let selection = self.preview.as_ref().map(|p| {
             p.files
@@ -634,7 +632,11 @@ impl Render for Form {
         let bt = source.starts_with("magnet:")
             || (source.ends_with(".torrent") && std::path::Path::new(&source).is_absolute());
         let ftp = source.starts_with("ftp:") || source.starts_with("sftp:");
-        let mut body = v_flex().gap_4();
+        let mut body = v_flex()
+            .w_full()
+            .flex_shrink_0()
+            .gap_4()
+            .when(settings, |body| body.gap_6());
         if self.browser_source.is_some() {
             body = body.child(
                 div()
@@ -649,36 +651,36 @@ impl Render for Form {
                     h_flex()
                         .gap_2()
                         .items_end()
-                        .child(self.field("source", "new.link", cx))
+                        .child(self.field("source", "new.link"))
                         .child(
-                            Button::new("torrent")
+                            control("torrent")
                                 .icon(IconName::FolderOpen)
                                 .label(".torrent")
                                 .tooltip(t(&self.locale, "new.chooseTorrent"))
                                 .disabled(self.busy)
-                                .on_click(
-                                    cx.listener(|this, _, window, cx| this.pick(false, window, cx)),
-                                ),
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.pick("source", window, cx)
+                                })),
                         ),
                 )
                 .child(
                     h_flex()
                         .gap_2()
                         .items_end()
-                        .child(self.field("directory", "new.saveTo", cx))
+                        .child(self.field("directory", "new.saveTo"))
                         .child(
-                            Button::new("folder")
+                            control("folder")
                                 .label(t(&self.locale, "new.browse"))
                                 .disabled(self.busy)
-                                .on_click(
-                                    cx.listener(|this, _, window, cx| this.pick(true, window, cx)),
-                                ),
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.pick("directory", window, cx)
+                                })),
                         ),
                 )
-                .child(self.field("filename", "new.fileName", cx));
+                .child(self.field("filename", "new.fileName"));
             if source.starts_with("magnet:") {
                 body = body.child(
-                    Button::new("preview")
+                    control("preview")
                         .label(t(
                             &self.locale,
                             if self.resolving {
@@ -704,6 +706,7 @@ impl Render for Form {
                     .id("preview-files")
                     .max_h(px(150.))
                     .overflow_y_scroll()
+                    .track_scroll(&self.preview_scroll)
                     .gap_2();
                 for file in &preview.files {
                     let index = file.index;
@@ -722,110 +725,174 @@ impl Render for Form {
                             })),
                     );
                 }
-                body = body.child(files);
+                body = body.child(scroll_mask(
+                    files,
+                    &self.preview_scroll,
+                    cx.theme().background,
+                ));
             }
-            body = body.child(
-                h_flex().child(
-                    Button::new("advanced")
-                        .ghost()
-                        .icon(if self.advanced {
-                            IconName::ChevronDown
-                        } else {
-                            IconName::ChevronRight
-                        })
-                        .label(t(&self.locale, "new.advanced"))
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.advanced = !this.advanced;
-                            cx.notify();
-                        })),
-                ),
-            );
         }
-        if !creating || self.advanced {
-            if creating {
-                body = body.child(self.field("connections", "new.maxConnections", cx));
-                if !bt && !ftp {
-                    body = body
-                        .child(self.field("headers", "fields.customHeaders", cx))
-                        .child(self.field("cookie", "fields.cookie", cx))
+        // Assemble the disclosure content separately from the main form and footer.
+        let mut options = v_flex().w_full().flex_shrink_0().gap_4();
+        if creating {
+            options = options.child(self.field("connections", "new.maxConnections"));
+            if !bt && !ftp {
+                options = options
+                    .child(self.field("headers", "fields.customHeaders"))
+                    .child(self.field("cookie", "fields.cookie"))
+                    .child(
+                        h_flex()
+                            .gap_3()
+                            .child(self.field("referer", "fields.referer"))
+                            .child(self.field("agent", "fields.userAgent")),
+                    );
+            } else if ftp {
+                options = options.child(
+                    h_flex()
+                        .gap_3()
+                        .child(self.field("username", "credentials.username"))
+                        .child(self.field("password", "credentials.password")),
+                );
+                if source.starts_with("sftp:") {
+                    options = options
                         .child(
                             h_flex()
-                                .gap_3()
-                                .child(self.field("referer", "fields.referer", cx))
-                                .child(self.field("agent", "fields.userAgent", cx)),
-                        );
-                } else if ftp {
-                    body = body.child(
-                        h_flex()
-                            .gap_3()
-                            .child(self.field("username", "credentials.username", cx))
-                            .child(self.field("password", "credentials.password", cx)),
-                    );
-                    if source.starts_with("sftp:") {
-                        body = body
-                            .child(self.field("privatekey", "fields.privateKeyPath", cx))
-                            .child(self.field("passphrase", "credentials.keyPassphrase", cx));
-                    }
-                } else {
-                    body = body
-                        .child(self.field("trackers", "fields.extraTrackers", cx))
-                        .child(self.field("ratio", "fields.shareRatio", cx))
-                        .child(
-                            Switch::new("seeding")
-                                .label(t(&self.locale, "fields.seedAfter"))
-                                .checked(self.seeding)
-                                .disabled(self.busy)
-                                .on_click(cx.listener(|this, value, _, cx| {
-                                    this.seeding = *value;
-                                    cx.notify();
-                                })),
-                        );
+                                .gap_2()
+                                .items_end()
+                                .child(self.field("privatekey", "fields.privateKeyPath"))
+                                .child(
+                                    control("choose-private-key")
+                                        .label(t(&self.locale, "new.browse"))
+                                        .disabled(self.busy)
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.pick("privatekey", window, cx)
+                                        })),
+                                ),
+                        )
+                        .child(self.field("passphrase", "credentials.keyPassphrase"));
                 }
-            }
-            if settings {
-                body = body.child(
-                    div()
-                        .text_size(px(13.))
-                        .font_semibold()
-                        .child(t(&self.locale, "settings.transfer.title")),
-                );
-            }
-            body = body.child(
-                h_flex()
-                    .gap_3()
-                    .child(self.field("down", "native.downloadLimitUnit", cx))
-                    .child(self.field("up", "native.uploadLimitUnit", cx)),
-            );
-            if creating || settings {
-                body = body.child(
-                    Switch::new("proxy")
-                        .label(t(&self.locale, "settings.proxy.useSystem"))
-                        .checked(self.proxy)
-                        .disabled(self.busy)
-                        .on_click(cx.listener(|this, value, _, cx| {
-                            this.proxy = *value;
-                            cx.notify();
-                        })),
-                );
-            }
-            if settings {
-                body = body
+            } else {
+                options = options
+                    .child(self.field("trackers", "fields.extraTrackers"))
+                    .child(self.field("ratio", "fields.shareRatio"))
                     .child(
-                        div()
-                            .mt_4()
+                        Switch::new("seeding")
+                            .small()
                             .text_size(px(13.))
-                            .font_semibold()
-                            .child(t(&self.locale, "settings.bt.title")),
-                    )
-                    .child(self.field("trackers", "settings.bt.trackers", cx))
-                    .child(
-                        h_flex()
-                            .gap_3()
-                            .child(self.field("allow", "settings.bt.allow", cx))
-                            .child(self.field("deny", "settings.bt.deny", cx)),
+                            .label(t(&self.locale, "fields.seedAfter"))
+                            .checked(self.seeding)
+                            .disabled(self.busy)
+                            .on_click(cx.listener(|this, value, _, cx| {
+                                this.seeding = *value;
+                                cx.notify();
+                            })),
                     );
             }
         }
+        let mut transfer = v_flex().w_full().gap_3().child(
+            h_flex()
+                .w_full()
+                .items_start()
+                .gap_3()
+                .child(self.field("down", "native.downloadLimitUnit"))
+                .child(self.field("up", "native.uploadLimitUnit")),
+        );
+        if creating || settings {
+            transfer = transfer.child(separator(cx)).child(preference_row(
+                t(&self.locale, "settings.proxy.useSystem"),
+                Switch::new("proxy")
+                    .small()
+                    .tooltip(t(&self.locale, "settings.proxy.useSystem"))
+                    .checked(self.proxy)
+                    .disabled(self.busy)
+                    .on_click(cx.listener(|this, value, _, cx| {
+                        this.proxy = *value;
+                        cx.notify();
+                    })),
+            ));
+        }
+        options = if settings {
+            options.child(settings_group(
+                t(&self.locale, "settings.transfer.title"),
+                transfer,
+                cx,
+            ))
+        } else {
+            options.child(transfer)
+        };
+        if settings {
+            options = options.child(settings_group(
+                t(&self.locale, "settings.bt.title"),
+                v_flex()
+                    .w_full()
+                    .gap_4()
+                    .child(self.field("trackers", "settings.bt.trackers"))
+                    .child(separator(cx))
+                    .child(
+                        h_flex()
+                            .w_full()
+                            .items_start()
+                            .gap_3()
+                            .child(self.field("allow", "settings.bt.allow"))
+                            .child(self.field("deny", "settings.bt.deny")),
+                    )
+                    .child(
+                        h_flex()
+                            .w_full()
+                            .items_start()
+                            .gap_3()
+                            .child(self.field("clients", "settings.bt.blockedClients"))
+                            .child(self.field("peerids", "settings.bt.blockedPeerIds")),
+                    )
+                    .child(
+                        div()
+                            .w_full()
+                            .text_xs()
+                            .text_color(cx.theme().muted_foreground)
+                            .child(t(&self.locale, "native.peerFilterPolicy")),
+                    ),
+                cx,
+            ));
+        }
+
+        if creating {
+            let header = control("advanced")
+                .ghost()
+                .w_full()
+                .h(px(40.))
+                .rounded(px(0.))
+                .justify_between()
+                .child(
+                    div()
+                        .flex_1()
+                        .text_left()
+                        .font_medium()
+                        .child(t(&self.locale, "new.advanced")),
+                )
+                .on_click(cx.listener(|this, _, window, cx| {
+                    this.advanced.toggle();
+                    if !this.advanced.open
+                        && this.inputs.iter().any(|(key, input)| {
+                            !matches!(*key, "source" | "directory" | "filename")
+                                && input.focus_handle(cx).contains_focused(window, cx)
+                        })
+                    {
+                        this.focus(window, cx);
+                    }
+                    cx.notify();
+                }));
+            body = body.child(collapse_card(
+                &mut self.advanced,
+                header,
+                None,
+                options,
+                window,
+                cx,
+            ));
+        } else {
+            body = body.child(options);
+        }
+
         let height = if settings {
             window.viewport_size().height - px(250.)
         } else {
@@ -834,16 +901,22 @@ impl Render for Form {
         let content = if settings {
             body.into_any_element()
         } else {
-            div()
-                .id("form-scroll")
-                .max_h(height.max(px(180.)))
-                .overflow_y_scroll()
-                .pr_2()
-                .child(body)
-                .into_any_element()
+            scroll_mask(
+                div()
+                    .id("form-scroll")
+                    .max_h(height.max(px(180.)))
+                    .overflow_y_scroll()
+                    .track_scroll(&self.scroll)
+                    .pr_2()
+                    .child(body),
+                &self.scroll,
+                cx.theme().background,
+            )
+            .into_any_element()
         };
         v_flex()
             .w_full()
+            .flex_shrink_0()
             .gap_4()
             .child(content)
             .when(!self.error.is_empty(), |view| {
@@ -857,38 +930,45 @@ impl Render for Form {
                         .child(self.error.clone()),
                 )
             })
-            .child(
-                h_flex()
-                    .justify_end()
-                    .when(settings, |row| row.justify_start())
-                    .gap_2()
-                    .pt_3()
-                    .when(!settings, |row| {
-                        row.child(
-                            Button::new("cancel")
-                                .label(t(&self.locale, "common.cancel"))
+            .when(!settings, |view| {
+                view.child(
+                    h_flex()
+                        .w_full()
+                        .min_h(px(48.))
+                        .flex_shrink_0()
+                        .justify_end()
+                        .when(settings, |row| row.justify_start())
+                        .gap_2()
+                        .pt_1()
+                        .when(!settings, |row| {
+                            row.child(
+                                control("cancel")
+                                    .label(t(&self.locale, "common.cancel"))
+                                    .disabled(self.busy)
+                                    .on_click(
+                                        cx.listener(|_, _, _, cx| cx.emit(FormEvent::Cancel)),
+                                    ),
+                            )
+                        })
+                        .child(
+                            control("submit")
+                                .primary()
+                                .label(t(
+                                    &self.locale,
+                                    if self.busy {
+                                        "common.saving"
+                                    } else if creating {
+                                        "new.create"
+                                    } else if settings {
+                                        "native.saveTransferSettings"
+                                    } else {
+                                        "common.save"
+                                    },
+                                ))
                                 .disabled(self.busy)
-                                .on_click(cx.listener(|_, _, _, cx| cx.emit(FormEvent::Cancel))),
-                        )
-                    })
-                    .child(
-                        Button::new("submit")
-                            .primary()
-                            .label(t(
-                                &self.locale,
-                                if self.busy {
-                                    "common.saving"
-                                } else if creating {
-                                    "new.create"
-                                } else if settings {
-                                    "native.saveTransferSettings"
-                                } else {
-                                    "common.save"
-                                },
-                            ))
-                            .disabled(self.busy)
-                            .on_click(cx.listener(|this, _, _, cx| this.submit(cx))),
-                    ),
-            )
+                                .on_click(cx.listener(|this, _, _, cx| this.submit(cx))),
+                        ),
+                )
+            })
     }
 }

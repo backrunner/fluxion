@@ -1,8 +1,27 @@
 use super::*;
+use crate::ui_style::{collapse_card, control, scroll_mask};
+
+const DETAIL_SECTION_GAP: f32 = 16.;
+const DETAIL_FIELD_GAP: f32 = 12.;
+const DETAIL_VALUE_GAP: f32 = 6.;
 
 impl Workspace {
-    pub(super) fn detail_pane(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn detail_pane(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let surface = cx.theme().background;
+        // Reserve the sidebar, outer inset, and (on wide windows) the task list.
+        let pane_width = window.viewport_size().width
+            - px(208. + 12.)
+            - if window.viewport_size().width >= px(1020.) {
+                px(384. + 12.)
+            } else {
+                px(0.)
+            };
+        // Source text has its own font size and reserves space for the copy target.
+        let source_width = pane_width - px(48. + 2. + 12. + 4. + 8. + 28.);
         let Some(detail) = &self.detail else {
             return v_flex()
                 .h_full()
@@ -28,17 +47,47 @@ impl Workspace {
             .file_name
             .clone()
             .unwrap_or_else(|| self.tr("new.resolving"));
+        let protocol = match task.kind.download_kind() {
+            DownloadKind::Http => "HTTP",
+            DownloadKind::Ftp => "FTP",
+            DownloadKind::Sftp => "SFTP",
+            DownloadKind::Bt => "BT",
+        };
+        let size = bytes(task.total_bytes);
+        let text_width = |text: &str, font_size, weight| {
+            let mut run = window.text_style().to_run(text.len());
+            run.font = font(".SystemUIFont");
+            run.font.weight = weight;
+            window
+                .text_system()
+                .shape_line(text.to_owned().into(), font_size, &[run], None)
+                .width
+                .ceil()
+        };
+        let size_width = text_width(&size, px(13.), FontWeight::NORMAL);
+        let tag_width = text_width(protocol, px(11.), FontWeight::MEDIUM) + px(16.);
+        // Reserve the body insets, icon, gaps, size and tag before truncating
+        // the name, so metadata stays on the same line even in a narrow pane.
+        let name_width =
+            (pane_width - px(48. + 32. + 24. + 8.) - size_width - tag_width).max(px(0.));
+        let mut name_font = font(".SystemUIFont");
+        name_font.weight = FontWeight::SEMIBOLD;
+        let visible_name = cx
+            .text_system()
+            .line_wrapper(name_font, px(18.))
+            .truncate_line(name.clone().into(), name_width, "…", &mut Vec::new());
         let mut body = v_flex()
-            .px_6()
-            .pt_3()
-            .pb_6()
-            .gap_6()
+            .w_full()
+            .flex_shrink_0()
+            .gap(px(DETAIL_SECTION_GAP))
             .child(
                 h_flex()
-                    .gap_4()
+                    .w_full()
+                    .min_w_0()
+                    .gap_3()
                     .child(
                         div()
-                            .size(px(36.))
+                            .size(px(32.))
                             .flex_shrink_0()
                             .flex()
                             .items_center()
@@ -50,35 +99,47 @@ impl Workspace {
                             ),
                     )
                     .child(
-                        v_flex()
+                        h_flex()
                             .min_w_0()
+                            .flex_1()
                             .gap_2()
                             .child(
                                 div()
+                                    .max_w(name_width)
+                                    .min_w_0()
                                     .text_size(px(18.))
                                     .font_semibold()
+                                    .whitespace_nowrap()
+                                    .overflow_hidden()
                                     .line_height(relative(1.25))
-                                    .child(name),
+                                    .child(visible_name),
                             )
                             .child(
-                                h_flex()
-                                    .gap_2()
-                                    .text_xs()
+                                div()
+                                    .flex_shrink_0()
+                                    .text_size(px(13.))
+                                    .whitespace_nowrap()
                                     .text_color(cx.theme().muted_foreground)
-                                    .child(match task.kind.download_kind() {
-                                        DownloadKind::Http => "HTTP",
-                                        DownloadKind::Ftp => "FTP",
-                                        DownloadKind::Sftp => "SFTP",
-                                        DownloadKind::Bt => "BitTorrent",
-                                    })
-                                    .child("·")
-                                    .child(bytes(task.total_bytes)),
+                                    .child(size),
                             ),
+                    )
+                    .child(
+                        h_flex()
+                            .w(tag_width)
+                            .h(px(22.))
+                            .flex_shrink_0()
+                            .justify_center()
+                            .rounded(px(5.))
+                            .bg(inset_color(cx))
+                            .text_size(px(11.))
+                            .font_medium()
+                            .text_color(cx.theme().muted_foreground)
+                            .child(protocol),
                     ),
             )
             .child(
                 v_flex()
-                    .gap_3()
+                    .gap(px(8.))
                     .child(
                         h_flex()
                             .items_end()
@@ -223,6 +284,14 @@ impl Workspace {
                 )
             })),
         );
+        body = v_flex()
+            .w_full()
+            .flex_shrink_0()
+            .px(px(24.))
+            .pt(px(12.))
+            .pb(px(24.))
+            .gap(px(DETAIL_SECTION_GAP))
+            .child(body);
         if let Some(error) = &task.error {
             body = body.child(
                 v_flex()
@@ -250,32 +319,105 @@ impl Workspace {
                 BtSource::TorrentFile(p) => p.to_string_lossy().into_owned(),
             },
         };
+        // GPUI's flex text measurement can cache an unconstrained width. Shape
+        // the visible source against the pane width while retaining the full copy.
+        let visible_source = cx
+            .text_system()
+            .line_wrapper(font(".SystemUIFont"), px(13.))
+            .truncate_line(source.clone().into(), source_width, "…", &mut Vec::new());
+        let visible_directory = cx
+            .text_system()
+            .line_wrapper(font(".SystemUIFont"), px(14.))
+            .truncate_line(
+                task.save_dir.to_string_lossy().into_owned().into(),
+                (pane_width - px(48. + 12. + 28.)).max(px(0.)),
+                "…",
+                &mut Vec::new(),
+            );
         body = body.child(
             v_flex()
-                .gap_4()
+                .gap(px(DETAIL_FIELD_GAP))
                 .child(section(self.tr("native.fileDetails"), cx))
-                .child(info(
-                    self.tr("new.saveTo"),
-                    task.save_dir.to_string_lossy().into_owned(),
-                    cx,
-                ))
                 .child(
                     v_flex()
-                        .gap_1()
+                        .gap(px(DETAIL_VALUE_GAP))
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(cx.theme().muted_foreground)
+                                .child(self.tr("new.saveTo")),
+                        )
                         .child(
                             h_flex()
-                                .justify_between()
+                                .w_full()
+                                .min_w_0()
+                                .min_h(px(28.))
+                                .gap_3()
                                 .child(
                                     div()
-                                        .text_xs()
-                                        .text_color(cx.theme().muted_foreground)
-                                        .child(self.tr("new.link")),
+                                        .flex_1()
+                                        .min_w_0()
+                                        .text_size(px(14.))
+                                        .whitespace_nowrap()
+                                        .overflow_hidden()
+                                        .child(visible_directory),
                                 )
                                 .child(
-                                    self.icon_button("copy-source", "copy", "native.copySource")
+                                    control("open-save-directory")
+                                        .ghost()
                                         .size(px(28.))
+                                        .p_0()
+                                        .flex_shrink_0()
+                                        .text_color(cx.theme().muted_foreground)
+                                        .child(icon_view("folder-open").size(px(16.)))
+                                        .tooltip(self.tr("native.openFolder"))
+                                        .disabled(self.busy)
+                                        .on_click(cx.listener(move |this, _, window, cx| {
+                                            this.act(vec![id], TaskAction::OpenFolder, window, cx)
+                                        })),
+                                ),
+                        ),
+                )
+                .child(
+                    v_flex()
+                        .gap(px(DETAIL_VALUE_GAP))
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(cx.theme().muted_foreground)
+                                .child(self.tr("detail.source")),
+                        )
+                        .child(
+                            h_flex()
+                                .w_full()
+                                .min_w_0()
+                                .h(px(36.))
+                                .pl_3()
+                                .pr_1()
+                                .gap_2()
+                                .rounded(px(6.))
+                                .border_1()
+                                .border_color(cx.theme().border.opacity(0.6))
+                                .bg(inset_color(cx))
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .text_size(px(13.))
+                                        .whitespace_nowrap()
+                                        .overflow_hidden()
+                                        .child(visible_source),
+                                )
+                                .child(
+                                    crate::ui_style::control("copy-source")
+                                        .ghost()
+                                        .size(px(28.))
+                                        .p_0()
+                                        .flex_shrink_0()
+                                        .text_color(cx.theme().muted_foreground)
+                                        .child(icon_view("copy").size(px(16.)))
+                                        .tooltip(self.tr("native.copySource"))
                                         .on_click({
-                                            let source = source.clone();
                                             move |_, _, cx| {
                                                 cx.write_to_clipboard(ClipboardItem::new_string(
                                                     source.clone(),
@@ -283,67 +425,94 @@ impl Workspace {
                                             }
                                         }),
                                 ),
-                        )
-                        .child(div().text_sm().overflow_hidden().child(source)),
-                )
-                .child(info(
-                    self.tr("detail.created"),
-                    task.created_at
-                        .with_timezone(&chrono::Local)
-                        .format("%b %d, %Y · %H:%M")
-                        .to_string(),
-                    cx,
-                )),
-        );
-        body = body.child(
-            v_flex()
-                .gap_4()
-                .pt_2()
-                .child(
-                    h_flex()
-                        .justify_between()
-                        .child(section(self.tr("detail.rateLimits"), cx))
-                        .child(
-                            Button::new("edit-limits")
-                                .ghost()
-                                .small()
-                                .label(self.tr("native.edit"))
-                                .disabled(self.busy)
-                                .on_click(cx.listener(move |this, _, window, cx| {
-                                    this.open_form(FormKind::Limits(id), window, cx)
-                                })),
                         ),
                 )
                 .child(
                     h_flex()
-                        .gap_4()
-                        .child(metric(
-                            self.tr("detail.downloadLimit"),
-                            task.limits
-                                .download_bytes_per_second
-                                .map(speed)
-                                .unwrap_or_else(|| self.tr("common.unlimited")),
-                            cx,
-                        ))
-                        .child(metric(
-                            self.tr("detail.uploadLimit"),
-                            task.limits
-                                .upload_bytes_per_second
-                                .map(speed)
-                                .unwrap_or_else(|| self.tr("common.unlimited")),
-                            cx,
-                        )),
+                        .gap_3()
+                        .flex_wrap()
+                        .child(
+                            div()
+                                .flex_1()
+                                .text_xs()
+                                .text_color(cx.theme().muted_foreground)
+                                .child(self.tr("detail.created")),
+                        )
+                        .child(
+                            div().text_size(px(13.)).child(
+                                task.created_at
+                                    .with_timezone(&chrono::Local)
+                                    .format(&self.tr("detail.dateTimeFormat"))
+                                    .to_string(),
+                            ),
+                        ),
                 ),
         );
+        let mut limits = v_flex().gap(px(DETAIL_FIELD_GAP)).child(
+            h_flex()
+                .gap_4()
+                .child(metric(
+                    self.tr("detail.downloadLimit"),
+                    task.limits
+                        .download_bytes_per_second
+                        .map(speed)
+                        .unwrap_or_else(|| self.tr("common.unlimited")),
+                    cx,
+                ))
+                .child(metric(
+                    self.tr("detail.uploadLimit"),
+                    task.limits
+                        .upload_bytes_per_second
+                        .map(speed)
+                        .unwrap_or_else(|| self.tr("common.unlimited")),
+                    cx,
+                )),
+        );
         if let TaskKind::Http(config) = &task.kind {
-            body = body.child(info(
-                self.tr("new.maxConnections"),
-                config.max_connections.unwrap_or(16).to_string(),
-                cx,
-            ));
+            limits = limits.child(
+                info(
+                    self.tr("new.maxConnections"),
+                    config.max_connections.unwrap_or(16).to_string(),
+                    cx,
+                )
+                .gap(px(DETAIL_VALUE_GAP)),
+            );
+        }
+        let header = control("detail-limits-toggle")
+            .ghost()
+            .h(px(40.))
+            .justify_between()
+            .child(
+                div()
+                    .flex_1()
+                    .text_left()
+                    .font_medium()
+                    .child(self.tr("detail.rateLimits")),
+            )
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.detail_limits.toggle();
+                cx.notify();
+            }));
+        let edit = self
+            .action_button("edit-limits", "pencil", "native.edit")
+            .ghost()
+            .h(px(28.))
+            .disabled(self.busy)
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.open_form(FormKind::Limits(id), window, cx)
+            }));
+        body = body.child(collapse_card(
+            &mut self.detail_limits,
+            header,
+            Some(edit),
+            limits,
+            window,
+            cx,
+        ));
+        if let TaskKind::Http(config) = &task.kind {
             if !config.headers.is_empty() || !detail.credentials.headers.is_empty() {
                 let mut headers = v_flex()
-                    .gap_3()
+                    .gap(px(DETAIL_FIELD_GAP))
                     .child(section(self.tr("credentials.requestHeaders"), cx));
                 for header in config
                     .headers
@@ -447,8 +616,11 @@ impl Workspace {
                 h_flex()
                     .h(px(60.))
                     .flex_shrink_0()
-                    .px_6()
-                    .gap_3()
+                    .pl_6()
+                    // The 20 px glyph sits inside a 36 px hit target. Offset
+                    // its 8 px inset so it aligns with the body's right edge.
+                    .pr_4()
+                    .gap_2()
                     .child(
                         div()
                             .text_xs()
@@ -460,6 +632,13 @@ impl Workspace {
                     )
                     .child(actions)
                     .child(
+                        div()
+                            .w(px(1.))
+                            .h(px(16.))
+                            .flex_shrink_0()
+                            .bg(cx.theme().border.opacity(0.7)),
+                    )
+                    .child(
                         self.icon_button("close-detail", "panel-right-close", "common.close")
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.preferences.detail_open = false;
@@ -468,12 +647,17 @@ impl Workspace {
                     ),
             )
             .child(
-                div()
-                    .id("detail-scroll")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .child(body),
+                scroll_mask(
+                    div()
+                        .id("detail-scroll")
+                        .size_full()
+                        .overflow_y_scroll()
+                        .track_scroll(&self.detail_scroll)
+                        .child(body),
+                    &self.detail_scroll,
+                    surface,
+                )
+                .flex_1(),
             )
             .into_any_element()
     }

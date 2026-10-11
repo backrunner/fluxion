@@ -9,6 +9,10 @@ rust-version.workspace = true
 name = "fluxion-app"
 path = "native/main.rs"
 
+[features]
+default = []
+app-store = []
+
 [dependencies]
 anyhow.workspace = true
 async-channel = "2.5"
@@ -33,6 +37,11 @@ semver = "1"
 sha2.workspace = true
 sqlx.workspace = true
 tempfile.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSData", "NSError", "NSString", "NSURL", "NSPathUtilities"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWorkspace"] }
 
 
 [dev-dependencies]

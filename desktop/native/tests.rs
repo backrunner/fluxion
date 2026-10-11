@@ -6,6 +6,88 @@ use crate::{
 use fluxion_core::*;
 use std::{collections::BTreeMap, time::Duration};
 
+#[test]
+fn batch_actions_continue_after_a_missing_task() {
+    let data = tempfile::tempdir().unwrap();
+    let files = tempfile::tempdir().unwrap();
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let backend = backend::Backend::start(&runtime, data.path().into());
+    runtime.block_on(async {
+        async fn next(backend: &backend::Backend) -> Message {
+            tokio::time::timeout(Duration::from_secs(10), backend.messages.recv())
+                .await
+                .unwrap()
+                .unwrap()
+        }
+        while !matches!(next(&backend).await, Message::Snapshot(..)) {}
+        backend
+            .commands
+            .send(Command::Create(input(
+                "https://example.test/file",
+                files.path().to_str().unwrap(),
+            )))
+            .await
+            .unwrap();
+        let id = loop {
+            if let Message::Created(id) = next(&backend).await {
+                break id;
+            }
+        };
+        while !matches!(next(&backend).await, Message::Finished) {}
+        backend
+            .commands
+            .send(Command::Act(vec![uuid::Uuid::new_v4(), id], Action::Stop))
+            .await
+            .unwrap();
+        let (mut succeeded, mut reported_failure) = (false, false);
+        loop {
+            match next(&backend).await {
+                Message::Acted(task_id, Action::Stop) => {
+                    assert_eq!(id, task_id);
+                    succeeded = true;
+                }
+                Message::Error(error) => {
+                    assert!(error.contains("1 task(s)"));
+                    reported_failure = true;
+                }
+                Message::Finished => break,
+                _ => (),
+            }
+        }
+        assert!(succeeded && reported_failure);
+        backend.commands.close();
+        tokio::time::timeout(Duration::from_secs(5), backend.stopped.recv())
+            .await
+            .unwrap()
+            .unwrap();
+    });
+    let core = runtime
+        .block_on(fluxion_runtime::build_core(data.path().into()))
+        .unwrap();
+    assert_eq!(
+        runtime
+            .block_on(core.list_tasks(Default::default()))
+            .unwrap()[0]
+            .state,
+        TaskState::Stopped
+    );
+}
+
+#[cfg(feature = "app-store")]
+#[test]
+fn store_updater_cannot_check_download_or_install() {
+    use crate::updater::*;
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    runtime.block_on(async {
+        assert!(check(Channel::Stable).await.is_err());
+        let (tx, _) = async_channel::bounded(1);
+        let release = serde_json::from_str(r#"{"version":"9.0.0"}"#).unwrap();
+        assert!(prepare(release, Channel::Stable, tx).await.is_err());
+        assert!(install(PreparedUpdate {}).await.is_err());
+    });
+    assert!(!Preferences::default().auto_check_updates);
+}
+
 fn input(source: &str, directory: &str) -> CreateTaskInput {
     let fields = BTreeMap::from([
         ("source", source.into()),
@@ -67,7 +149,7 @@ fn form_rejects_invalid_limits_headers_and_protocols() {
     assert!(build_input(&fields, Default::default(), vec![], false, true, vec![]).is_err());
 }
 
-fn task(state: TaskState) -> TaskSummary {
+pub(super) fn task(state: TaskState) -> TaskSummary {
     TaskSummary {
         id: uuid::Uuid::new_v4(),
         kind: DownloadKind::Http,
@@ -134,6 +216,7 @@ fn trash_never_leaks_into_normal_filters_and_progress_is_bounded() {
     assert_eq!(eta(0, Some(100), 0), "—");
 }
 
+#[cfg(not(feature = "app-store"))]
 #[test]
 fn signed_updater_rejects_bad_signatures_and_archive_links() {
     assert!(crate::updater::verify(b"payload", "invalid").is_err());
@@ -181,7 +264,11 @@ fn native_backend_downloads_and_persists_real_http_file() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let backend = backend::Backend::start(&runtime, data.path().into());
     runtime.block_on(async {
-        async fn next(backend: &backend::Backend) -> Message {
+        async fn next(
+            backend: &backend::Backend,
+            store: &mut crate::model::TaskStore,
+            progress_seen: &mut bool,
+        ) -> Message {
             let message = tokio::time::timeout(Duration::from_secs(15), backend.messages.recv())
                 .await
                 .expect("backend response timeout")
@@ -189,9 +276,24 @@ fn native_backend_downloads_and_persists_real_http_file() {
             if let Message::Error(error) = &message {
                 panic!("backend failed: {error}");
             }
+            match &message {
+                Message::Snapshot(tasks, _) => store.tasks = tasks.clone(),
+                Message::Event(event) => {
+                    if matches!(event, CoreEvent::TaskProgress(p) if p.downloaded_bytes > 0) {
+                        *progress_seen = true;
+                    }
+                    store.apply(event);
+                }
+                _ => (),
+            }
             message
         }
-        while !matches!(next(&backend).await, Message::Snapshot(..)) {}
+        let mut store = crate::model::TaskStore::default();
+        let mut progress_seen = false;
+        while !matches!(
+            next(&backend, &mut store, &mut progress_seen).await,
+            Message::Snapshot(..)
+        ) {}
         backend
             .commands
             .send(Command::Create(input(
@@ -201,7 +303,7 @@ fn native_backend_downloads_and_persists_real_http_file() {
             .await
             .unwrap();
         let id = loop {
-            if let Message::Created(id) = next(&backend).await {
+            if let Message::Created(id) = next(&backend, &mut store, &mut progress_seen).await {
                 break id;
             }
         };
@@ -211,18 +313,29 @@ fn native_backend_downloads_and_persists_real_http_file() {
             .await
             .unwrap();
         loop {
-            if let Message::Event(CoreEvent::TaskCompleted { task_id, .. }) = next(&backend).await {
+            if let Message::Event(CoreEvent::TaskCompleted { task_id, .. }) =
+                next(&backend, &mut store, &mut progress_seen).await
+            {
                 assert_eq!(task_id, id);
                 break;
             }
         }
+        // Creation, progress and completion must reach the list without a Refresh command.
+        assert!(progress_seen, "the backend must forward live byte progress");
+        assert_eq!(store.tasks.len(), 1);
+        assert_eq!(store.tasks[0].id, id);
+        assert_eq!(store.tasks[0].state, TaskState::Completed);
+        assert_eq!(store.tasks[0].downloaded_bytes, expected.len() as u64);
+        assert_eq!(store.tasks[0].total_bytes, Some(expected.len() as u64));
         assert_eq!(
             std::fs::read(files.path().join("fixture.bin")).unwrap(),
             expected
         );
         backend.commands.send(Command::Detail(id)).await.unwrap();
         loop {
-            if let Message::Detail(_, Some(detail)) = next(&backend).await {
+            if let Message::Detail(_, Some(detail)) =
+                next(&backend, &mut store, &mut progress_seen).await
+            {
                 assert_eq!(detail.task.state, TaskState::Completed);
                 assert!(
                     backend::output_path(&detail)
