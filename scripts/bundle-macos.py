@@ -62,9 +62,31 @@ def main():
     parser.add_argument('--notarize', action='store_true', help='Require Developer ID signing and Apple notarization')
     parser.add_argument('--version', default='0.1.0')
     parser.add_argument('--channel', choices=['stable', 'beta'], default='stable')
+    parser.add_argument('--distribution', choices=['direct', 'app-store'], default='direct')
+    parser.add_argument('--build-number', default='1', help='Numeric Mac App Store build number')
+    parser.add_argument('--provisioning-profile', type=Path)
     args = parser.parse_args()
     validate_release(args.version, args.channel)
+    store = args.distribution == 'app-store'
+    if store:
+        if args.dmg or args.notarize or args.channel != 'stable' or args.preview or args.skip_build:
+            parser.error('App Store builds require a fresh stable build without DMG, notarization or preview identity')
+        if not re.fullmatch(r'[1-9][0-9]*', args.build_number):
+            parser.error('--build-number must be a positive integer')
     identity = os.environ.get('APPLE_SIGNING_IDENTITY') or '-'
+    if store and identity != '-' and not identity.startswith(('Apple Distribution:', '3rd Party Mac Developer Application:')):
+        parser.error('App Store signing requires an Apple Distribution or Mac App Distribution identity')
+    if store and identity != '-' and not args.provisioning_profile:
+        parser.error('Signed App Store builds require --provisioning-profile')
+    identity_settings = {}
+    if args.provisioning_profile:
+        from release.store_profile import read_identity_entitlements
+        if not store or identity == '-':
+            parser.error('A provisioning profile is used only with a distribution-signed App Store build')
+        try:
+            identity_settings = read_identity_entitlements(args.provisioning_profile, 'top.backrunner.fluxion')
+        except (ValueError, KeyError, OSError, subprocess.CalledProcessError):
+            parser.error('Provisioning profile must be valid, unexpired and match the App Store bundle')
     if args.notarize:
         if not args.release or args.preview or not identity.startswith('Developer ID Application:'):
             parser.error('--notarize requires a release build and Developer ID Application identity')
@@ -77,7 +99,11 @@ def main():
     binaries = []
     browser_hosts = []
     for target in targets:
-        cargo = ['cargo', 'build', '--locked', '-p', 'fluxion-app', '-p', 'fluxion-browser']
+        cargo = ['cargo', 'build', '--locked', '-p', 'fluxion-app']
+        if store:
+            cargo += ['--features', 'fluxion-app/app-store']
+        else:
+            cargo += ['-p', 'fluxion-browser']
         if args.release:
             cargo.append('--release')
         if target:
@@ -85,8 +111,9 @@ def main():
         if not args.skip_build:
             run(*cargo, env=env)
         binaries.append(ROOT / 'target' / (target or '') / profile / 'fluxion-app')
-        browser_hosts.append(ROOT / 'target' / (target or '') / profile / 'fluxion-browser-host')
-    output = ROOT / 'target' / ('universal-apple-darwin' if args.universal else 'native') / profile / 'bundle'
+        if not store:
+            browser_hosts.append(ROOT / 'target' / (target or '') / profile / 'fluxion-browser-host')
+    output = ROOT / 'target' / ('universal-apple-darwin' if args.universal else 'native') / profile / ('app-store' if store else 'bundle')
     app = output / ('Fluxion Preview.app' if args.preview else 'Fluxion.app')
     if app.exists():
         shutil.rmtree(app)
@@ -100,11 +127,12 @@ def main():
     else:
         shutil.copy2(binaries[0], executable)
     browser_host = macos / 'fluxion-browser-host'
-    if args.universal:
-        run('lipo', '-create', *(str(p) for p in browser_hosts), '-output', str(browser_host))
-    else:
-        shutil.copy2(browser_hosts[0], browser_host)
-    shutil.copytree(ROOT / 'browser-extension', resources / 'browser-extension',
+    if not store:
+        if args.universal:
+            run('lipo', '-create', *(str(p) for p in browser_hosts), '-output', str(browser_host))
+        else:
+            shutil.copy2(browser_hosts[0], browser_host)
+        shutil.copytree(ROOT / 'browser-extension', resources / 'browser-extension',
                     ignore=shutil.ignore_patterns('*.test.mjs'))
     shutil.copy2(ROOT / 'desktop/assets/app/icon.icns', resources / 'icon.icns')
     plist = {
@@ -112,11 +140,20 @@ def main():
         'CFBundleIdentifier': 'top.backrunner.fluxion',
         'CFBundleExecutable': 'fluxion-app', 'CFBundleIconFile': 'icon.icns',
         'CFBundlePackageType': 'APPL', 'CFBundleShortVersionString': args.version,
-        'CFBundleVersion': args.version, 'LSMinimumSystemVersion': '11.0',
+        'CFBundleVersion': args.build_number if store else args.version, 'LSMinimumSystemVersion': '11.0',
         'FluxionReleaseChannel': args.channel,
         'NSHighResolutionCapable': True, 'NSPrincipalClass': 'NSApplication',
         'LSApplicationCategoryType': 'public.app-category.utilities',
     }
+    if store:
+        plist['FluxionDistribution'] = 'app-store'
+        plist.pop('FluxionReleaseChannel')
+        shutil.copy2(ROOT / 'desktop/app-store/PrivacyInfo.xcprivacy', resources / 'PrivacyInfo.xcprivacy')
+        if args.provisioning_profile:
+            shutil.copy2(args.provisioning_profile, app / 'Contents/embedded.provisionprofile')
+    shutil.copy2(ROOT / 'LICENSE', resources / 'LICENSE.txt')
+    shutil.copy2(ROOT / 'docs/app-store/privacy.md', resources / 'Privacy.md')
+    run('python3', 'scripts/release/dependency-notices.py', '--output', str(resources / 'ThirdPartyNotices.md'))
     if args.preview:
         plist.update(CFBundleName='Fluxion Preview', CFBundleDisplayName='Fluxion Preview',
                      CFBundleIdentifier='top.backrunner.fluxion.gpui-preview',
@@ -125,13 +162,20 @@ def main():
     command = ['codesign', '--force', '--sign', identity]
     if identity != '-':
         command += ['--options', 'runtime', '--timestamp']
-    run(*command, str(browser_host))
+    if not store:
+        run(*command, str(browser_host))
+    if store:
+        entitlements = plistlib.loads((ROOT / 'desktop/app-store/Fluxion.entitlements').read_bytes())
+        entitlements.update(identity_settings)
+        signing_entitlements = output / 'Fluxion.entitlements'
+        signing_entitlements.write_bytes(plistlib.dumps(entitlements))
+        command += ['--entitlements', str(signing_entitlements)]
     run(*command, str(app))
     run('codesign', '--verify', '--deep', '--strict', str(app))
     if args.notarize:
         notarize(app)
         run('spctl', '--assess', '--type', 'execute', '--verbose', str(app))
-    if args.release:
+    if args.release and not store:
         archive = output / 'Fluxion.app.tar.gz'
         # System tar includes metadata entries. Python's tar emits only ordinary files/directories.
         import tarfile
