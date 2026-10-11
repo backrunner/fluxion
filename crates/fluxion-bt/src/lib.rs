@@ -27,7 +27,22 @@ async fn shared_session() -> Result<&'static Arc<Session>> {
             // torrent (and magnet preview) passes an explicit output_folder.
             let base = std::env::temp_dir().join("fluxion-bt-session");
             tokio::fs::create_dir_all(&base).await?;
-            Session::new(base).await.map_err(bt_error)
+            Session::new_with_opts(
+                base,
+                librqbit::SessionOptions {
+                    listen: Some(librqbit::ListenerOptions::default()),
+                    // Core owns task recovery. Avoid librqbit's independent
+                    // home-directory DHT cache, which is outside store authority.
+                    dht: Some(librqbit::DhtSessionConfig {
+                        persistence: None,
+                        ..Default::default()
+                    }),
+                    persistence: None,
+                    ..Default::default()
+                },
+            )
+            .await
+            .map_err(bt_error)
         })
         .await
 }
@@ -56,14 +71,19 @@ impl DownloadEngine for BtEngine {
         DownloadKind::Bt
     }
 
-    async fn prepare(&self, _ctx: EngineContext, task: PreparedTask) -> Result<PreparedTask> {
+    async fn prepare(&self, ctx: EngineContext, task: PreparedTask) -> Result<PreparedTask> {
         let TaskKind::Bt(stored_config) = &task.task.kind else {
             return Err(FluxionError::new(
                 FluxionErrorKind::InvalidConfig,
                 "not a BT task",
             ));
         };
-        let config = effective_bt_config(stored_config, &task.credentials)?;
+        let config = runtime_config(
+            stored_config,
+            &task.credentials,
+            &ctx.storage.get_settings().await?,
+        )?;
+        validate_peer_policy(&config)?;
         validate_bt_source(&config.source)?;
         Ok(task)
     }
@@ -80,22 +100,56 @@ impl DownloadEngine for BtEngine {
                 "not a BT task",
             ));
         };
-        let config = effective_bt_config(stored_config, &task.credentials)?;
+        let config = runtime_config(
+            stored_config,
+            &task.credentials,
+            &ctx.storage.get_settings().await?,
+        )?;
         let handle = self
             .adapter
             .start(
                 &config,
                 task.task.save_dir.clone(),
                 task.task.limits.clone(),
+                &control,
             )
             .await?;
-        sync_session_rate_limits(&ctx, &handle).await?;
+        let result = self
+            .run_handle(&ctx, &task, &config, control, &handle)
+            .await;
+        // Always stop the managed torrent, including progress/storage failures.
+        // Otherwise a Failed task can keep receiving or uploading in the session.
+        handle.remove().await?;
+        result
+    }
+
+    async fn resolve_magnet_preview(
+        &self,
+        ctx: EngineContext,
+        magnet: &str,
+    ) -> Result<MagnetPreview> {
+        self.adapter
+            .resolve_magnet_preview(magnet, &ctx.storage.get_settings().await?)
+            .await
+    }
+}
+
+impl BtEngine {
+    async fn run_handle(
+        &self,
+        ctx: &EngineContext,
+        task: &PreparedTask,
+        config: &BtTaskConfig,
+        control: TaskControl,
+        handle: &RqbitDownload,
+    ) -> Result<EngineExit> {
+        sync_session_rate_limits(ctx, handle).await?;
         // Register the live handle as a state provider so the UI can query
         // file/piece state while the task is running (or seeding).
         let provider: Arc<dyn EngineStateProvider> = Arc::new(handle.clone());
         ctx.register_state_provider(task.task.id, provider).await;
         loop {
-            if let Err(error) = sync_session_rate_limits(&ctx, &handle).await {
+            if let Err(error) = sync_session_rate_limits(ctx, handle).await {
                 tracing::warn!(task_id = ?task.task.id, ?error, "failed to refresh BitTorrent global limits");
             }
             let stats = handle.stats();
@@ -113,25 +167,23 @@ impl DownloadEngine for BtEngine {
                 break;
             }
             if control.is_cancelled() {
-                let _ = handle.remove().await;
                 return Err(FluxionError::cancelled());
             }
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            let cancellation = control.cancellation_token();
+            tokio::select! {
+                _ = cancellation.cancelled() => {},
+                _ = tokio::time::sleep(Duration::from_secs(1)) => {},
+            }
         }
         if config.enable_seeding {
             ctx.set_state(task.task.id, TaskState::Seeding).await?;
             // The download is already complete at this point, so both a
             // reached share ratio and a user cancellation of the seeding
             // phase end the task as Completed rather than as cancelled.
-            self.seed_until_cancelled_or_ratio(&ctx, &task, &config, control, &handle)
+            self.seed_until_cancelled_or_ratio(ctx, task, config, control, handle)
                 .await?;
         }
-        let _ = handle.remove().await;
         Ok(EngineExit::Completed { file_path: None })
-    }
-
-    async fn resolve_magnet_preview(&self, magnet: &str) -> Result<MagnetPreview> {
-        self.adapter.resolve_magnet_preview(magnet).await
     }
 }
 
@@ -169,7 +221,11 @@ impl BtEngine {
             if control.is_cancelled() {
                 return Ok(());
             }
-            tokio::time::sleep(Duration::from_secs(5)).await;
+            let cancellation = control.cancellation_token();
+            tokio::select! {
+                _ = cancellation.cancelled() => {},
+                _ = tokio::time::sleep(Duration::from_secs(5)) => {},
+            }
         }
     }
 }
@@ -304,13 +360,31 @@ impl EngineStateProvider for RqbitDownload {
     }
 }
 
+async fn controlled_add(
+    session: &Arc<Session>,
+    add: AddTorrent<'_>,
+    options: AddTorrentOptions,
+    control: &TaskControl,
+) -> Result<AddTorrentResponse> {
+    control
+        .network_io(async {
+            session
+                .add_torrent(add, Some(options))
+                .await
+                .map_err(bt_error)
+        })
+        .await
+}
+
 impl RqbitAdapter {
     pub async fn start(
         &self,
         config: &BtTaskConfig,
         output_dir: PathBuf,
         limits: TaskRateLimit,
+        control: &TaskControl,
     ) -> Result<RqbitDownload> {
+        validate_peer_policy(config)?;
         tokio::fs::create_dir_all(&output_dir).await?;
         let session = shared_session().await?.clone();
         let add = match &config.source {
@@ -320,40 +394,26 @@ impl RqbitAdapter {
                 AddTorrent::from_bytes(bytes)
             }
         };
-        let options = AddTorrentOptions {
-            output_folder: Some(output_dir.to_string_lossy().to_string()),
-            only_files: if config.selected_files.is_empty() {
-                None
-            } else {
-                Some(
-                    config
-                        .selected_files
-                        .iter()
-                        .map(|value| *value as usize)
-                        .collect(),
-                )
-            },
-            overwrite: true,
-            peer_limit: config.max_connections.map(|value| value as usize),
-            trackers: if config.trackers.is_empty() {
-                None
-            } else {
-                Some(config.trackers.iter().map(ToString::to_string).collect())
-            },
-            ratelimits: librqbit::limits::LimitsConfig {
-                download_bps: nonzero_u32(limits.download_bytes_per_second),
-                upload_bps: nonzero_u32(limits.upload_bytes_per_second),
-            },
-            ..Default::default()
+        let options = torrent_options(config, &output_dir, limits);
+        // Metadata resolution can otherwise wait indefinitely for a dead swarm.
+        // Our shared session has no persistence backend: after insertion there is
+        // no await before returning the handle, so dropping this wait cannot
+        // strand a registered torrent between insertion and handle ownership.
+        let handle = match controlled_add(&session, add, options, control).await? {
+            AddTorrentResponse::Added(_, handle) => handle,
+            AddTorrentResponse::AlreadyManaged(_, _) => {
+                return Err(FluxionError::new(
+                    FluxionErrorKind::InvalidConfig,
+                    "A task for this torrent is already active",
+                ));
+            }
+            AddTorrentResponse::ListOnly(_) => {
+                return Err(FluxionError::new(
+                    FluxionErrorKind::Unknown,
+                    "torrent was not started",
+                ));
+            }
         };
-        let handle = session
-            .add_torrent(add, Some(options))
-            .await
-            .map_err(bt_error)?
-            .into_handle()
-            .ok_or_else(|| {
-                FluxionError::new(FluxionErrorKind::Unknown, "torrent was not started")
-            })?;
         let selected_files = if config.selected_files.is_empty() {
             None
         } else {
@@ -379,7 +439,11 @@ impl RqbitAdapter {
     ///
     /// This is a network-bound probe: on a dead swarm it can take the full
     /// timeout and still fail. Callers must surface failures gracefully.
-    pub async fn resolve_magnet_preview(&self, magnet: &str) -> Result<MagnetPreview> {
+    pub async fn resolve_magnet_preview(
+        &self,
+        magnet: &str,
+        settings: &fluxion_core::SettingsSnapshot,
+    ) -> Result<MagnetPreview> {
         if !magnet.starts_with("magnet:?") {
             return Err(FluxionError::new(
                 FluxionErrorKind::InvalidConfig,
@@ -401,6 +465,27 @@ impl RqbitAdapter {
         let add = AddTorrent::from_url(magnet.to_string());
         let options = AddTorrentOptions {
             list_only: true,
+            trackers: Some(
+                settings
+                    .bt_trackers
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
+            ),
+            peer_filter: Some(PeerPolicy::from_config(&runtime_config(
+                &BtTaskConfig {
+                    source: BtSource::Magnet(magnet.to_owned()),
+                    selected_files: vec![],
+                    trackers: vec![],
+                    max_connections: None,
+                    share_ratio_limit: None,
+                    enable_seeding: false,
+                    anti_leech: Default::default(),
+                    ip_filter: Default::default(),
+                },
+                &Default::default(),
+                settings,
+            )?)),
             output_folder: Some(tmp.path().to_string_lossy().to_string()),
             ..Default::default()
         };
@@ -473,6 +558,152 @@ impl RqbitAdapter {
     }
 }
 
+// Merge persisted credentials and global policy before handing the per-torrent
+// filter to librqbit. Reject behavior rules the adapter cannot enforce.
+fn runtime_config(
+    stored: &BtTaskConfig,
+    credentials: &fluxion_core::TaskCredentials,
+    settings: &fluxion_core::SettingsSnapshot,
+) -> Result<BtTaskConfig> {
+    let mut config = effective_bt_config(stored, credentials)?;
+    config.trackers.extend(settings.bt_trackers.iter().cloned());
+    config.trackers.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+    config.trackers.dedup();
+    config.ip_filter.allow.extend(
+        settings
+            .bt_ip_allow
+            .iter()
+            .map(|cidr| fluxion_core::IpRule { cidr: cidr.clone() }),
+    );
+    config.ip_filter.deny.extend(
+        settings
+            .bt_ip_deny
+            .iter()
+            .map(|cidr| fluxion_core::IpRule { cidr: cidr.clone() }),
+    );
+    config
+        .anti_leech
+        .blocked_client_names
+        .extend(settings.bt_blocked_clients.iter().cloned());
+    config
+        .anti_leech
+        .blocked_peer_id_prefixes
+        .extend(settings.bt_blocked_peer_ids.iter().cloned());
+    validate_peer_policy(&config)?;
+    Ok(config)
+}
+
+fn torrent_options(
+    config: &BtTaskConfig,
+    output_dir: &std::path::Path,
+    limits: TaskRateLimit,
+) -> AddTorrentOptions {
+    AddTorrentOptions {
+        output_folder: Some(output_dir.to_string_lossy().to_string()),
+        only_files: if config.selected_files.is_empty() {
+            None
+        } else {
+            Some(
+                config
+                    .selected_files
+                    .iter()
+                    .map(|value| *value as usize)
+                    .collect(),
+            )
+        },
+        overwrite: true,
+        peer_filter: Some(PeerPolicy::from_config(config)),
+        peer_limit: config.max_connections.map(|value| value as usize),
+        trackers: if config.trackers.is_empty() {
+            None
+        } else {
+            Some(config.trackers.iter().map(ToString::to_string).collect())
+        },
+        ratelimits: librqbit::limits::LimitsConfig {
+            download_bps: nonzero_u32(limits.download_bytes_per_second),
+            upload_bps: nonzero_u32(limits.upload_bytes_per_second),
+        },
+        ..Default::default()
+    }
+}
+
+fn validate_peer_policy(config: &BtTaskConfig) -> Result<()> {
+    if config.anti_leech.block_suspicious_fast_disconnects {
+        return Err(FluxionError::new(
+            FluxionErrorKind::InvalidConfig,
+            "Automatic fast-disconnect blocking is not supported. Disable this behavior rule before starting.",
+        ));
+    }
+    for rule in config.ip_filter.allow.iter().chain(&config.ip_filter.deny) {
+        if fluxion_core::cidr_contains(&rule.cidr, "127.0.0.1".parse().unwrap()).is_none()
+            && fluxion_core::cidr_contains(&rule.cidr, "::1".parse().unwrap()).is_none()
+        {
+            return Err(FluxionError::new(
+                FluxionErrorKind::InvalidConfig,
+                "Invalid peer IP or CIDR rule",
+            ));
+        }
+    }
+    if config
+        .anti_leech
+        .blocked_client_names
+        .iter()
+        .chain(&config.anti_leech.blocked_peer_id_prefixes)
+        .any(|rule| rule.trim().is_empty())
+    {
+        return Err(FluxionError::new(
+            FluxionErrorKind::InvalidConfig,
+            "Peer blocking rules cannot be empty",
+        ));
+    }
+    Ok(())
+}
+
+struct PeerPolicy {
+    anti_leech: AntiLeechConfig,
+    ip_filter: IpFilterConfig,
+}
+impl PeerPolicy {
+    fn from_config(config: &BtTaskConfig) -> Arc<dyn librqbit::PeerFilter> {
+        Arc::new(Self {
+            anti_leech: config.anti_leech.clone(),
+            ip_filter: config.ip_filter.clone(),
+        })
+    }
+}
+impl librqbit::PeerFilter for PeerPolicy {
+    fn allow(
+        &self,
+        addr: std::net::SocketAddr,
+        id: Option<&[u8; 20]>,
+        client: Option<&[u8]>,
+    ) -> bool {
+        let decoded_name = id
+            .and_then(|id| librqbit::try_decode_peer_id(librqbit::dht::Id20::new(*id)))
+            .and_then(|peer| match peer {
+                librqbit::PeerId::AzureusStyle(style) => match style.kind {
+                    librqbit::AzureusStyleKind::Deluge => Some("Deluge"),
+                    librqbit::AzureusStyleKind::LibTorrent => Some("libtorrent"),
+                    librqbit::AzureusStyleKind::Transmission => Some("Transmission"),
+                    librqbit::AzureusStyleKind::QBittorrent => Some("qBittorrent"),
+                    librqbit::AzureusStyleKind::UTorrent => Some("uTorrent"),
+                    librqbit::AzureusStyleKind::RQBit => Some("rqbit"),
+                    librqbit::AzureusStyleKind::Other(_) => None,
+                },
+            });
+        let mut peer = PeerIdentity {
+            ip: addr.ip().to_canonical(),
+            peer_id: id.map(|v| String::from_utf8_lossy(v).into_owned()),
+            client_name: decoded_name.map(str::to_owned),
+        };
+        if should_block_peer(&peer, &self.anti_leech, &self.ip_filter) {
+            return false;
+        }
+        peer.client_name = client.map(|v| String::from_utf8_lossy(v).into_owned());
+        !should_block_peer(&peer, &self.anti_leech, &self.ip_filter)
+    }
+}
+
 fn nonzero_u32(value: Option<u64>) -> Option<NonZeroU32> {
     let value = value?;
     NonZeroU32::new(value.min(u64::from(u32::MAX)) as u32)
@@ -501,10 +732,11 @@ pub fn should_block_peer(
         return true;
     }
     if let Some(client_name) = &peer.client_name
-        && anti_leech
-            .blocked_client_names
-            .iter()
-            .any(|blocked| client_name.contains(blocked))
+        && anti_leech.blocked_client_names.iter().any(|blocked| {
+            client_name
+                .to_lowercase()
+                .contains(&blocked.trim().to_lowercase())
+        })
     {
         return true;
     }
@@ -512,7 +744,7 @@ pub fn should_block_peer(
         && anti_leech
             .blocked_peer_id_prefixes
             .iter()
-            .any(|prefix| peer_id.starts_with(prefix))
+            .any(|prefix| peer_id.starts_with(prefix.trim()))
     {
         return true;
     }
@@ -546,6 +778,20 @@ mod tests {
             "https://tracker.example/announce".to_string(),
         );
 
+        assert!(validate_peer_policy(&stored).is_ok());
+        let mut restricted = stored.clone();
+        restricted.ip_filter.deny.push(IpRule {
+            cidr: "10.0.0.0/8".into(),
+        });
+        assert!(validate_peer_policy(&restricted).is_ok());
+        restricted.ip_filter.deny.clear();
+        restricted
+            .anti_leech
+            .blocked_client_names
+            .push("blocked-client".into());
+        assert!(validate_peer_policy(&restricted).is_ok());
+        restricted.anti_leech.block_suspicious_fast_disconnects = true;
+        assert!(validate_peer_policy(&restricted).is_err());
         let effective = effective_bt_config(&stored, &credentials).unwrap();
         assert!(matches!(effective.source, BtSource::Magnet(value) if value.ends_with("abc")));
         assert_eq!(effective.trackers.len(), 1);
@@ -593,3 +839,6 @@ mod tests {
         ));
     }
 }
+
+#[cfg(test)]
+mod protocol_tests;

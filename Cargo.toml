@@ -1,5 +1,6 @@
 [workspace]
 resolver = "3"
+exclude = ["vendor/librqbit"]
 members = [
   "crates/fluxion-core",
   "crates/fluxion-storage",
@@ -46,3 +47,6 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "fmt"] }
 url = { version = "2.5.4", features = ["serde"] }
 uuid = { version = "1.17.0", features = ["v4", "serde"] }
+
+[patch.crates-io]
+librqbit = { path = "vendor/librqbit" }

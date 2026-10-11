@@ -106,15 +106,26 @@ async fn run_ftp_download(
         .unwrap_or("anonymous");
     let password = task.credentials.password.as_deref().unwrap_or("anonymous@");
 
-    let mut ftp = AsyncFtpStream::connect(addr).await.map_err(ftp_error)?;
+    let mut ftp = control
+        .network_io(async { AsyncFtpStream::connect(addr).await.map_err(ftp_error) })
+        .await?;
     if !config.passive {
         ftp.set_mode(Mode::Active);
     }
-    ftp.login(username, password).await.map_err(ftp_error)?;
-    ftp.transfer_type(FileType::Binary)
+    control
+        .network_io(async { ftp.login(username, password).await.map_err(ftp_error) })
+        .await?;
+    control
+        .network_io(async { ftp.transfer_type(FileType::Binary).await.map_err(ftp_error) })
+        .await?;
+    let total = match control
+        .network_io(async { ftp.size(&remote_path).await.map_err(ftp_error) })
         .await
-        .map_err(ftp_error)?;
-    let total = ftp.size(&remote_path).await.ok().map(|value| value as u64);
+    {
+        Ok(value) => Some(value as u64),
+        Err(error) if error.kind() == FluxionErrorKind::Cancelled => return Err(error),
+        Err(_) => None,
+    };
     let existing = existing_len(&part).await?;
     if let Some(total) = total
         && existing > total
@@ -125,11 +136,17 @@ async fn run_ftp_download(
         ));
     }
     if existing > 0 {
-        ftp.resume_transfer(existing as usize)
-            .await
-            .map_err(ftp_error)?;
+        control
+            .network_io(async {
+                ftp.resume_transfer(existing as usize)
+                    .await
+                    .map_err(ftp_error)
+            })
+            .await?;
     }
-    let mut stream = ftp.retr_as_stream(&remote_path).await.map_err(ftp_error)?;
+    let mut stream = control
+        .network_io(async { ftp.retr_as_stream(&remote_path).await.map_err(ftp_error) })
+        .await?;
     let mut file = tokio::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -142,11 +159,16 @@ async fn run_ftp_download(
             if control.is_cancelled() {
                 return Ok(false);
             }
-            let read = stream.read(&mut buffer).await?;
+            let read = control
+                .network_io(async { stream.read(&mut buffer).await.map_err(FluxionError::from) })
+                .await?;
             if read == 0 {
                 return Ok(true);
             }
             control.acquire_download(read as u64).await;
+            if control.is_cancelled() {
+                return Ok(false);
+            }
             file.write_all(&buffer[..read]).await?;
             downloaded += read as u64;
             throttled_progress(ctx, task.task.id, downloaded, total, false).await?;
@@ -156,18 +178,22 @@ async fn run_ftp_download(
     file.flush().await?;
     match transfer {
         Ok(true) => {
-            let finalized = ftp.finalize_retr_stream(stream).await.map_err(ftp_error);
-            let _ = ftp.quit().await;
+            let finalized = control
+                .network_io(async { ftp.finalize_retr_stream(stream).await.map_err(ftp_error) })
+                .await;
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(1), ftp.quit()).await;
             finalized?;
         }
         Ok(false) => {
-            let _ = ftp.abort(stream).await;
-            let _ = ftp.quit().await;
+            let _ =
+                tokio::time::timeout(std::time::Duration::from_secs(1), ftp.abort(stream)).await;
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(1), ftp.quit()).await;
             return Err(FluxionError::cancelled());
         }
         Err(error) => {
-            let _ = ftp.abort(stream).await;
-            let _ = ftp.quit().await;
+            let _ =
+                tokio::time::timeout(std::time::Duration::from_secs(1), ftp.abort(stream)).await;
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(1), ftp.quit()).await;
             return Err(error);
         }
     }

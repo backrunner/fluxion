@@ -15,4 +15,8 @@ tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
 url.workspace = true
+tempfile.workspace = true
 
+[dev-dependencies]
+fluxion-storage = { path = "../fluxion-storage" }
+rand = "0.10"

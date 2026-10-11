@@ -512,7 +512,16 @@ impl FluxionCore {
                 "BitTorrent engine is not available",
             )
         })?;
-        engine.resolve_magnet_preview(&magnet).await
+        engine
+            .resolve_magnet_preview(
+                EngineContext {
+                    storage: self.storage.clone(),
+                    events: self.events.clone(),
+                    state_providers: self.state_providers.clone(),
+                },
+                &magnet,
+            )
+            .await
     }
 }
 

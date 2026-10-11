@@ -139,7 +139,11 @@ pub trait DownloadEngine: Send + Sync {
     /// starting a download, so the UI can preview and let the user pick files
     /// before task creation. Only the BT engine implements this; the default
     /// returns an error for every other engine so Core can stay trait-routed.
-    async fn resolve_magnet_preview(&self, _magnet: &str) -> Result<MagnetPreview> {
+    async fn resolve_magnet_preview(
+        &self,
+        _ctx: EngineContext,
+        _magnet: &str,
+    ) -> Result<MagnetPreview> {
         Err(FluxionError::new(
             FluxionErrorKind::InvalidConfig,
             "magnet preview is not supported by this engine",

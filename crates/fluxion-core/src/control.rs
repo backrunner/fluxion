@@ -36,6 +36,22 @@ impl TaskControl {
         self.cancellation.is_cancelled()
     }
 
+    /// Bound one network operation and make it interruptible during pause/stop.
+    /// File writes remain outside this helper so engines can flush their partial
+    /// file before returning cancellation.
+    pub async fn network_io<T>(
+        &self,
+        future: impl std::future::Future<Output = crate::Result<T>>,
+    ) -> crate::Result<T> {
+        tokio::select! {
+            biased;
+            _ = self.cancellation.cancelled() => Err(crate::FluxionError::cancelled()),
+            result = tokio::time::timeout(std::time::Duration::from_secs(30), future) => {
+                result.unwrap_or_else(|_| Err(crate::FluxionError::new(crate::FluxionErrorKind::Network, "Network operation timed out after 30 seconds")))
+            }
+        }
+    }
+
     /// Apply new task-level limits to a running task.
     pub async fn update_limits(&self, limits: TaskRateLimit) {
         self.task_download

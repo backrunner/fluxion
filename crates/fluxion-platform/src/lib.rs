@@ -111,22 +111,14 @@ pub async fn preallocate(path: &Path, len: u64) -> Result<()> {
     Ok(())
 }
 
-/// Read the macOS system HTTP(S) proxy via `scutil --proxy`. Returns `None`
+/// Read the macOS system HTTP(S) proxy through SystemConfiguration. Returns `None`
 /// when no proxy is enabled (or on non-macOS platforms). rustls-based reqwest
 /// only honours env-var proxies by itself, so this bridges the gap between
 /// "Use system proxy" in settings and the actual macOS network configuration.
 pub async fn system_proxy() -> Result<Option<ProxyConfig>> {
     #[cfg(target_os = "macos")]
     {
-        let output = tokio::process::Command::new("scutil")
-            .arg("--proxy")
-            .output()
-            .await?;
-        if !output.status.success() {
-            return Ok(None);
-        }
-        let text = String::from_utf8_lossy(&output.stdout);
-        Ok(parse_scutil_proxy(&text))
+        Ok(native_system_proxy())
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -143,6 +135,55 @@ pub async fn system_proxy() -> Result<Option<ProxyConfig>> {
         }
         Ok(None)
     }
+}
+
+#[cfg(target_os = "macos")]
+fn native_system_proxy() -> Option<ProxyConfig> {
+    use core_foundation::{
+        base::{CFType, TCFType},
+        dictionary::{CFDictionary, CFDictionaryRef},
+        number::CFNumber,
+        string::CFString,
+    };
+    #[link(name = "SystemConfiguration", kind = "framework")]
+    unsafe extern "C" {
+        fn SCDynamicStoreCopyProxies(store: *const std::ffi::c_void) -> CFDictionaryRef;
+    }
+    // Copy returns an owned dictionary. A null store asks for the current system configuration.
+    let reference = unsafe { SCDynamicStoreCopyProxies(std::ptr::null()) };
+    if reference.is_null() {
+        return None;
+    }
+    let dictionary: CFDictionary<CFString, CFType> =
+        unsafe { TCFType::wrap_under_create_rule(reference) };
+    let mut text = String::new();
+    for key in [
+        "HTTPEnable",
+        "HTTPProxy",
+        "HTTPPort",
+        "HTTPSEnable",
+        "HTTPSProxy",
+        "HTTPSPort",
+        "SOCKSEnable",
+        "SOCKSProxy",
+        "SOCKSPort",
+    ] {
+        if let Some(value) = dictionary.find(CFString::new(key)) {
+            let value = value
+                .downcast::<CFString>()
+                .map(|s| s.to_string())
+                .or_else(|| {
+                    value
+                        .downcast::<CFNumber>()
+                        .and_then(|n| n.to_i64())
+                        .map(|n| n.to_string())
+                });
+            if let Some(value) = value {
+                text.push_str(&format!("{key} : {value}\n"));
+            }
+        }
+    }
+    parse_scutil_proxy(&text)
 }
 
 #[cfg(target_os = "macos")]

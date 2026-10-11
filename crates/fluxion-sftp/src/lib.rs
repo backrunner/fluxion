@@ -14,11 +14,17 @@ use url::Url;
 
 const BUFFER_SIZE: usize = 128 * 1024;
 
-pub struct SftpEngine;
+pub struct SftpEngine {
+    known_hosts: PathBuf,
+}
 
 impl SftpEngine {
     pub fn new() -> Self {
-        Self
+        Self::with_known_hosts(known_hosts_path())
+    }
+
+    pub fn with_known_hosts(path: PathBuf) -> Self {
+        Self { known_hosts: path }
     }
 }
 
@@ -73,7 +79,7 @@ impl DownloadEngine for SftpEngine {
                 )
             })?;
         }
-        run_sftp_download(&ctx, &task, &config, control).await
+        run_sftp_download(&ctx, &task, &config, control, &self.known_hosts).await
     }
 }
 
@@ -82,6 +88,7 @@ async fn run_sftp_download(
     task: &PreparedTask,
     config: &SftpTaskConfig,
     control: TaskControl,
+    known_hosts: &std::path::Path,
 ) -> Result<EngineExit> {
     tokio::fs::create_dir_all(&task.task.save_dir).await?;
     let file_name = task
@@ -105,29 +112,49 @@ async fn run_sftp_download(
     let handler = SftpClient {
         host: addr.0.clone(),
         port: addr.1,
+        known_hosts: known_hosts.into(),
     };
-    let mut session = client::connect(Arc::new(client::Config::default()), addr, handler)
-        .await
-        .map_err(sftp_error)?;
-    let authenticated = authenticate_sftp(&mut session, username, task, config).await?;
+    let mut session = control
+        .network_io(async {
+            client::connect(Arc::new(client::Config::default()), addr, handler)
+                .await
+                .map_err(sftp_error)
+        })
+        .await?;
+    let authenticated = control
+        .network_io(authenticate_sftp(&mut session, username, task, config))
+        .await?;
     if !authenticated {
         return Err(FluxionError::new(
             FluxionErrorKind::Unauthorized,
             "SFTP authentication failed",
         ));
     }
-    let channel = session.channel_open_session().await.map_err(sftp_error)?;
-    channel
-        .request_subsystem(true, "sftp")
-        .await
-        .map_err(sftp_error)?;
-    let sftp = SftpSession::new(channel.into_stream())
-        .await
-        .map_err(sftp_client_error)?;
-    let total = sftp
-        .metadata(remote_path.clone())
-        .await
-        .map_err(sftp_client_error)?
+    let channel = control
+        .network_io(async { session.channel_open_session().await.map_err(sftp_error) })
+        .await?;
+    control
+        .network_io(async {
+            channel
+                .request_subsystem(true, "sftp")
+                .await
+                .map_err(sftp_error)
+        })
+        .await?;
+    let sftp = control
+        .network_io(async {
+            SftpSession::new(channel.into_stream())
+                .await
+                .map_err(sftp_client_error)
+        })
+        .await?;
+    let total = control
+        .network_io(async {
+            sftp.metadata(remote_path.clone())
+                .await
+                .map_err(sftp_client_error)
+        })
+        .await?
         .size;
     let existing = existing_len(&part).await?;
     if let Some(total) = total
@@ -138,12 +165,18 @@ async fn run_sftp_download(
             format!("partial SFTP file is larger than remote file: {existing} > {total}"),
         ));
     }
-    let mut remote = sftp.open(remote_path).await.map_err(sftp_client_error)?;
+    let mut remote = control
+        .network_io(async { sftp.open(remote_path).await.map_err(sftp_client_error) })
+        .await?;
     if existing > 0 {
-        remote
-            .seek(std::io::SeekFrom::Start(existing))
-            .await
-            .map_err(FluxionError::from)?;
+        control
+            .network_io(async {
+                remote
+                    .seek(std::io::SeekFrom::Start(existing))
+                    .await
+                    .map_err(FluxionError::from)
+            })
+            .await?;
     }
     let mut local = tokio::fs::OpenOptions::new()
         .create(true)
@@ -155,22 +188,37 @@ async fn run_sftp_download(
     loop {
         if control.is_cancelled() {
             local.flush().await?;
-            let _ = remote.shutdown().await;
-            let _ = sftp.close().await;
             return Err(FluxionError::cancelled());
         }
-        let read = remote.read(&mut buffer).await.map_err(FluxionError::from)?;
+        let read = match control
+            .network_io(async { remote.read(&mut buffer).await.map_err(FluxionError::from) })
+            .await
+        {
+            Ok(read) => read,
+            Err(error) => {
+                local.flush().await?;
+                return Err(error);
+            }
+        };
         if read == 0 {
             break;
         }
         control.acquire_download(read as u64).await;
+        if control.is_cancelled() {
+            local.flush().await?;
+            return Err(FluxionError::cancelled());
+        }
         local.write_all(&buffer[..read]).await?;
         downloaded += read as u64;
         throttled_progress(ctx, task.task.id, downloaded, total, false).await?;
     }
     local.flush().await?;
-    remote.shutdown().await.map_err(FluxionError::from)?;
-    sftp.close().await.map_err(sftp_client_error)?;
+    control
+        .network_io(async { remote.shutdown().await.map_err(FluxionError::from) })
+        .await?;
+    control
+        .network_io(async { sftp.close().await.map_err(sftp_client_error) })
+        .await?;
     throttled_progress(ctx, task.task.id, downloaded, total, true).await?;
     validate_size(&part, total).await?;
     tokio::fs::rename(part, &output).await?;
@@ -240,6 +288,7 @@ fn expand_home_path(path: &std::path::Path) -> PathBuf {
 struct SftpClient {
     host: String,
     port: u16,
+    known_hosts: PathBuf,
 }
 
 impl client::Handler for SftpClient {
@@ -252,52 +301,92 @@ impl client::Handler for SftpClient {
         let fingerprint = server_public_key
             .fingerprint(russh::keys::HashAlg::Sha256)
             .to_string();
-        Ok(verify_host_key(&self.host, self.port, &fingerprint))
+        Ok(verify_host_key_at(
+            &self.known_hosts,
+            &self.host,
+            self.port,
+            &fingerprint,
+        ))
     }
 }
 
 /// Trust-on-first-use host key verification backed by a known_hosts file in
 /// the Fluxion data directory. The first connection records the server key
 /// fingerprint; later connections must present the same key.
-fn verify_host_key(host: &str, port: u16, fingerprint: &str) -> bool {
-    let path = known_hosts_path();
+static HOST_KEY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn verify_host_key_at(path: &std::path::Path, host: &str, port: u16, fingerprint: &str) -> bool {
+    use std::io::Write;
+    // Serialize read/modify/write so concurrent connections in this process do
+    // not discard another host's pin or accept two different first-use keys.
+    let Ok(_guard) = HOST_KEY_LOCK.lock() else {
+        return false;
+    };
+    use std::os::unix::fs::OpenOptionsExt;
+    let Some(parent) = path.parent() else {
+        return false;
+    };
+    if std::fs::create_dir_all(parent).is_err() {
+        return false;
+    }
+    let mut lock_path = path.as_os_str().to_os_string();
+    lock_path.push(".lock");
+    let Ok(lock_file) = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .mode(0o600)
+        .open(PathBuf::from(lock_path))
+    else {
+        return false;
+    };
+    if lock_file.lock().is_err() {
+        return false;
+    }
     let entry_key = format!("{host}:{port}");
-    let contents = std::fs::read_to_string(&path).unwrap_or_default();
+    let contents = match std::fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(_) => return false,
+    };
+    let mut found = false;
     for line in contents.lines() {
         let mut parts = line.split_whitespace();
         let (Some(key), Some(stored)) = (parts.next(), parts.next()) else {
             continue;
         };
         if key == entry_key {
-            if stored == fingerprint {
-                return true;
+            if stored != fingerprint {
+                tracing::error!(
+                    host = entry_key,
+                    "SFTP host key mismatch; refusing connection"
+                );
+                return false;
             }
-            tracing::error!(
-                host = entry_key,
-                expected = stored,
-                actual = fingerprint,
-                "SFTP host key mismatch; refusing connection (possible MITM). \
-                 Remove the entry from {} to trust the new key.",
-                path.display()
-            );
-            return false;
+            found = true;
         }
     }
-    // First connection to this host: record the fingerprint.
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
+    if found {
+        return true;
     }
     let mut updated = contents;
     if !updated.is_empty() && !updated.ends_with('\n') {
         updated.push('\n');
     }
     updated.push_str(&format!("{entry_key} {fingerprint}\n"));
-    if let Err(error) = std::fs::write(&path, updated) {
-        tracing::warn!(
-            path = %path.display(),
-            %error,
-            "failed to persist SFTP known_hosts entry"
-        );
+    // NamedTempFile uses private permissions and atomically replaces the pin
+    // database only after the complete contents have been flushed.
+    let saved = (|| -> std::io::Result<()> {
+        let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+        temporary.write_all(updated.as_bytes())?;
+        temporary.as_file().sync_all()?;
+        temporary.persist(path).map_err(|e| e.error)?;
+        Ok(())
+    })();
+    if saved.is_err() {
+        tracing::warn!("SFTP host key could not be saved; refusing connection");
+        return false;
     }
     true
 }
@@ -446,4 +535,73 @@ fn sftp_client_error(error: russh_sftp::client::error::Error) -> FluxionError {
         _ => FluxionErrorKind::Network,
     };
     FluxionError::new(kind, error.to_string())
+}
+
+#[cfg(test)]
+mod host_key_tests {
+    use super::verify_host_key_at;
+    #[test]
+    fn first_use_pins_key_and_changed_key_is_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("known_hosts");
+        assert!(verify_host_key_at(
+            &path,
+            "example.test",
+            22,
+            "SHA256:first"
+        ));
+        assert!(verify_host_key_at(
+            &path,
+            "example.test",
+            22,
+            "SHA256:first"
+        ));
+        assert!(!verify_host_key_at(
+            &path,
+            "example.test",
+            22,
+            "SHA256:changed"
+        ));
+        assert_eq!(
+            std::fs::read_to_string(path).unwrap(),
+            "example.test:22 SHA256:first\n"
+        );
+    }
+    #[test]
+    fn unreadable_or_unwritable_pin_store_never_establishes_trust() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(!verify_host_key_at(
+            dir.path(),
+            "example.test",
+            22,
+            "SHA256:first"
+        ));
+        let file = dir.path().join("not-a-directory");
+        std::fs::write(&file, b"fixture").unwrap();
+        assert!(!verify_host_key_at(
+            &file.join("known_hosts"),
+            "example.test",
+            22,
+            "SHA256:first"
+        ));
+    }
+    #[test]
+    fn concurrent_first_use_preserves_every_pin() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("known_hosts");
+        std::thread::scope(|scope| {
+            for n in 0..16 {
+                let path = &path;
+                scope.spawn(move || {
+                    assert!(verify_host_key_at(
+                        path,
+                        &format!("host{n}"),
+                        22,
+                        "SHA256:key"
+                    ))
+                });
+            }
+        });
+        assert_eq!(std::fs::read_to_string(path).unwrap().lines().count(), 16);
+    }
 }

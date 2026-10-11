@@ -562,6 +562,10 @@ pub struct SettingsSnapshot {
     pub bt_trackers: Vec<Url>,
     pub bt_ip_allow: Vec<String>,
     pub bt_ip_deny: Vec<String>,
+    #[serde(default)]
+    pub bt_blocked_clients: Vec<String>,
+    #[serde(default)]
+    pub bt_blocked_peer_ids: Vec<String>,
 }
 
 impl Default for SettingsSnapshot {
@@ -573,6 +577,8 @@ impl Default for SettingsSnapshot {
             bt_trackers: Vec::new(),
             bt_ip_allow: Vec::new(),
             bt_ip_deny: Vec::new(),
+            bt_blocked_clients: Vec::new(),
+            bt_blocked_peer_ids: Vec::new(),
         }
     }
 }
@@ -629,7 +635,10 @@ pub struct MagnetPreview {
     pub trackers: Vec<String>,
 }
 
+/// Allow matches override deny matches. A nonempty allow list is exclusive.
+/// Canonical IPv4-mapped addresses cannot bypass IPv4 rules.
 pub fn apply_ip_filter(config: &IpFilterConfig, ip: IpAddr) -> IpFilterDecision {
+    let ip = ip.to_canonical();
     if config
         .allow
         .iter()
@@ -644,7 +653,11 @@ pub fn apply_ip_filter(config: &IpFilterConfig, ip: IpAddr) -> IpFilterDecision 
     {
         return IpFilterDecision::Deny;
     }
-    IpFilterDecision::Allow
+    if config.allow.is_empty() {
+        IpFilterDecision::Allow
+    } else {
+        IpFilterDecision::Deny
+    }
 }
 
 pub fn cidr_contains(cidr: &str, ip: IpAddr) -> Option<bool> {

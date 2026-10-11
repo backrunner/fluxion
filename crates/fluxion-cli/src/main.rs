@@ -919,6 +919,7 @@ mod tests {
             bt_trackers: Vec::new(),
             bt_ip_allow: Vec::new(),
             bt_ip_deny: Vec::new(),
+            ..Default::default()
         };
 
         apply_settings_update(&mut settings, None, true, Some(4096), false, Some(false)).unwrap();

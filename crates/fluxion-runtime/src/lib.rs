@@ -20,7 +20,7 @@ pub async fn build_core(data_dir: PathBuf) -> Result<Arc<FluxionCore>> {
     let engines: Vec<Arc<dyn DownloadEngine>> = vec![
         Arc::new(HttpEngine::new()?),
         Arc::new(FtpEngine::new()),
-        Arc::new(SftpEngine::new()),
+        Arc::new(SftpEngine::with_known_hosts(data_dir.join("known_hosts"))),
         Arc::new(BtEngine::new()),
     ];
     let core = Arc::new(FluxionCore::new(store, engines));
