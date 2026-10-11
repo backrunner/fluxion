@@ -71,6 +71,13 @@ jobs:
           hdiutil verify "${bundle}/Fluxion_0.1.0_universal.dmg"
           test -s "${bundle}/Fluxion.app.tar.gz"
 
+      - name: Test and package the Mac App Store edition
+        run: |
+          host="$(rustc -vV | sed -n 's/^host: //p')"
+          cargo test -p fluxion-app --features app-store --locked --release --target "${host}"
+          python3 scripts/bundle-macos.py --release --universal --distribution app-store
+          python3 scripts/check-app-store.py target/universal-apple-darwin/release/app-store/Fluxion.app
+
       - name: Upload validation build
         uses: actions/upload-artifact@v6
         with:
@@ -78,3 +85,29 @@ jobs:
           path: target/universal-apple-darwin/release/bundle/Fluxion.app.tar.gz
           if-no-files-found: error
           retention-days: 7
+
+  website:
+    name: Website and reserved support intake
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: website/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm check:docs
+      - run: pnpm check:worker
+      - run: pnpm test:support
+      - run: pnpm build
+      - run: pnpm check:built
+      - run: pnpm check:deploy
