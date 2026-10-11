@@ -1,0 +1,9 @@
+[
+  {
+    "file": "@polka__url@1.0.0-next.29-license",
+    "url": "https://raw.githubusercontent.com/lukeed/polka/02cbdb529ddca0a9f3d225e2abb2931924219cc3/license",
+    "sha256": "ba573393f24555ac0528612ad39665fab5bdcc80330a61096024bbf5f736526d",
+    "npm_version": "1.0.0-next.29",
+    "npm_git_head": "02cbdb529ddca0a9f3d225e2abb2931924219cc3"
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "file": "@cloudflare__kv-asset-handler@0.5.0-LICENSE-MIT",
+    "url": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/LICENSE-MIT",
+    "sha256": "9bb3b077cc8628334bab25961223dd8207252c8a56aa054195be38f1c042aaf4",
+    "npm_version": "0.5.0",
+    "npm_git_head": null
+  },
+  {
+    "file": "@cloudflare__kv-asset-handler@0.5.0-LICENSE-APACHE",
+    "url": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/LICENSE-APACHE",
+    "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+    "npm_version": "0.5.0",
+    "npm_git_head": null
+  }
+]

@@ -1,0 +1,4069 @@
+{
+  "scope": "installed website dependency graph, including build and optional tools",
+  "lockfile_sha256": "4ae9c9a47306a6a9c9b49cc6103f3bccda33942e69beee9b542bb292a289d0b9",
+  "packages": [
+    {
+      "name": "@cloudflare/kv-asset-handler",
+      "version": "0.5.0",
+      "license": "MIT OR Apache-2.0",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/cloudflare/workers-sdk.git",
+        "directory": "packages/kv-asset-handler"
+      },
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/cloudflare/workers-sdk/main/LICENSE-APACHE": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+        "upstream: https://raw.githubusercontent.com/cloudflare/workers-sdk/main/LICENSE-MIT": "9bb3b077cc8628334bab25961223dd8207252c8a56aa054195be38f1c042aaf4"
+      },
+      "upstream_supplements": [
+        {
+          "file": "@cloudflare__kv-asset-handler@0.5.0-LICENSE-MIT",
+          "url": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/LICENSE-MIT",
+          "sha256": "9bb3b077cc8628334bab25961223dd8207252c8a56aa054195be38f1c042aaf4",
+          "npm_version": "0.5.0",
+          "npm_git_head": null
+        },
+        {
+          "file": "@cloudflare__kv-asset-handler@0.5.0-LICENSE-APACHE",
+          "url": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/LICENSE-APACHE",
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+          "npm_version": "0.5.0",
+          "npm_git_head": null
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@cloudflare/unenv-preset",
+      "version": "2.16.1",
+      "license": "MIT OR Apache-2.0",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/cloudflare/workers-sdk.git",
+        "directory": "packages/unenv-preset"
+      },
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/unenv-preset/LICENSE-APACHE": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+        "upstream: https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/unenv-preset/LICENSE-MIT": "6967403e44e729441704474cffc39c1e6f30602ee086d2669f8d68a9a0c89828"
+      },
+      "upstream_supplements": [
+        {
+          "file": "@cloudflare__unenv-preset@2.16.1-LICENSE-MIT",
+          "url": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/unenv-preset/LICENSE-MIT",
+          "sha256": "6967403e44e729441704474cffc39c1e6f30602ee086d2669f8d68a9a0c89828",
+          "npm_version": "2.16.1",
+          "npm_git_head": null
+        },
+        {
+          "file": "@cloudflare__unenv-preset@2.16.1-LICENSE-APACHE",
+          "url": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/unenv-preset/LICENSE-APACHE",
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+          "npm_version": "2.16.1",
+          "npm_git_head": null
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@cloudflare/workerd-darwin-arm64",
+      "version": "1.20260917.1",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/cloudflare/workerd",
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/cloudflare/workerd/c12bb46e50932659afbf3d4393fb9d9904c0d0ba/LICENSE": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+      },
+      "upstream_supplements": [
+        {
+          "file": "@cloudflare__workerd-darwin-arm64@1.20260917.1-LICENSE",
+          "url": "https://raw.githubusercontent.com/cloudflare/workerd/c12bb46e50932659afbf3d4393fb9d9904c0d0ba/LICENSE",
+          "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+          "npm_version": "1.20260917.1",
+          "npm_git_head": "c12bb46e50932659afbf3d4393fb9d9904c0d0ba"
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@cloudflare/workers-types",
+      "version": "4.20260702.1",
+      "license": "MIT OR Apache-2.0",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/cloudflare/workerd"
+      },
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/cloudflare/workerd/d63f9a84796dcd238cf8d4318d823c0b401914dd/LICENSE": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+      },
+      "upstream_supplements": [
+        {
+          "file": "@cloudflare__workers-types@4.20260702.1-LICENSE",
+          "url": "https://raw.githubusercontent.com/cloudflare/workerd/d63f9a84796dcd238cf8d4318d823c0b401914dd/LICENSE",
+          "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+          "npm_version": "4.20260702.1",
+          "npm_git_head": "d63f9a84796dcd238cf8d4318d823c0b401914dd"
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@cspotcode/source-map-support",
+      "version": "0.8.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/cspotcode/node-source-map-support"
+      },
+      "license_documents": {
+        "LICENSE.md": "3a7d3bb198e909ed642bd68bd29a7d7c09a636d27a51ec663d35f00c4760ec42"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@esbuild/darwin-arm64",
+      "version": "0.28.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/evanw/esbuild.git"
+      },
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/evanw/esbuild/bb9db84c02433fbe37b3509f53f9f3e3cc48725e/LICENSE.md": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681"
+      },
+      "upstream_supplements": [
+        {
+          "file": "@esbuild__darwin-arm64@0.28.1-LICENSE.md",
+          "url": "https://raw.githubusercontent.com/evanw/esbuild/bb9db84c02433fbe37b3509f53f9f3e3cc48725e/LICENSE.md",
+          "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681",
+          "npm_version": "0.28.1",
+          "npm_git_head": "bb9db84c02433fbe37b3509f53f9f3e3cc48725e"
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@img/colour",
+      "version": "1.1.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/lovell/colour.git"
+      },
+      "license_documents": {
+        "LICENSE.md": "e2eaa4603c14cb26f301e88648c12a853fa3f0f5da6d4b0972958c666e7f2ab8"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@img/sharp-darwin-arm64",
+      "version": "0.34.5",
+      "license": "Apache-2.0",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/lovell/sharp.git",
+        "directory": "npm/darwin-arm64"
+      },
+      "license_documents": {
+        "LICENSE": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@img/sharp-darwin-arm64",
+      "version": "0.35.4",
+      "license": "Apache-2.0",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/lovell/sharp.git",
+        "directory": "npm/darwin-arm64"
+      },
+      "license_documents": {
+        "LICENSE": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@img/sharp-libvips-darwin-arm64",
+      "version": "1.2.4",
+      "license": "LGPL-3.0-or-later",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/lovell/sharp-libvips.git",
+        "directory": "npm/darwin-arm64"
+      },
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/libvips/libvips/v8.17.3/LICENSE": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+        "upstream: https://raw.githubusercontent.com/lovell/sharp-libvips/20b5e899954907a3039d6e3d4c200aaa0ec52c4c/LICENSE": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+      },
+      "upstream_supplements": [
+        {
+          "file": "@img__sharp-libvips-darwin-arm64@1.2.4-LICENSE",
+          "url": "https://raw.githubusercontent.com/lovell/sharp-libvips/20b5e899954907a3039d6e3d4c200aaa0ec52c4c/LICENSE",
+          "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+          "npm_version": "1.2.4",
+          "npm_git_head": "20b5e899954907a3039d6e3d4c200aaa0ec52c4c"
+        },
+        {
+          "file": "@img__sharp-libvips-darwin-arm64@1.2.4-libvips-LICENSE",
+          "url": "https://raw.githubusercontent.com/libvips/libvips/v8.17.3/LICENSE",
+          "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+          "scope": "license of libvips 8.17.3 in the native build tool; tool binary is not redistributed"
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@img/sharp-libvips-darwin-arm64",
+      "version": "1.3.3",
+      "license": "LGPL-3.0-or-later",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/lovell/sharp-libvips.git",
+        "directory": "npm/darwin-arm64"
+      },
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/libvips/libvips/v8.18.6/LICENSE": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+        "upstream: https://raw.githubusercontent.com/lovell/sharp-libvips/6e5971d333377743163edc3ad9e5d0b897abcbc9/LICENSE": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+      },
+      "upstream_supplements": [
+        {
+          "file": "@img__sharp-libvips-darwin-arm64@1.3.3-LICENSE",
+          "url": "https://raw.githubusercontent.com/lovell/sharp-libvips/6e5971d333377743163edc3ad9e5d0b897abcbc9/LICENSE",
+          "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+          "npm_version": "1.3.3",
+          "npm_git_head": "6e5971d333377743163edc3ad9e5d0b897abcbc9"
+        },
+        {
+          "file": "@img__sharp-libvips-darwin-arm64@1.3.3-libvips-LICENSE",
+          "url": "https://raw.githubusercontent.com/libvips/libvips/v8.18.6/LICENSE",
+          "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+          "scope": "license of libvips 8.18.6 in the native build tool; tool binary is not redistributed"
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@jridgewell/gen-mapping",
+      "version": "0.3.13",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jridgewell/sourcemaps.git",
+        "directory": "packages/gen-mapping"
+      },
+      "license_documents": {
+        "LICENSE": "769d154fbde32a915af110b1123650bc79f4cbe675acc66e005265bf069c6c6c"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@jridgewell/remapping",
+      "version": "2.3.5",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jridgewell/sourcemaps.git",
+        "directory": "packages/remapping"
+      },
+      "license_documents": {
+        "LICENSE": "769d154fbde32a915af110b1123650bc79f4cbe675acc66e005265bf069c6c6c"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@jridgewell/resolve-uri",
+      "version": "3.1.2",
+      "license": "MIT",
+      "repository": "https://github.com/jridgewell/resolve-uri",
+      "license_documents": {
+        "LICENSE": "b8778b155bfde5a28b023a558753c0fa058a52bb9de35c343c250be1bbcdedab"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@jridgewell/sourcemap-codec",
+      "version": "1.6.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jridgewell/sourcemaps.git",
+        "directory": "packages/sourcemap-codec"
+      },
+      "license_documents": {
+        "LICENSE": "769d154fbde32a915af110b1123650bc79f4cbe675acc66e005265bf069c6c6c"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@jridgewell/trace-mapping",
+      "version": "0.3.31",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jridgewell/sourcemaps.git",
+        "directory": "packages/trace-mapping"
+      },
+      "license_documents": {
+        "LICENSE": "769d154fbde32a915af110b1123650bc79f4cbe675acc66e005265bf069c6c6c"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@jridgewell/trace-mapping",
+      "version": "0.3.9",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jridgewell/trace-mapping.git"
+      },
+      "license_documents": {
+        "LICENSE": "0daa3c2445c4bfaaa7e8c69ec2742a8841bc920b75818ef2c7a510242de2b04a"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@nodelib/fs.scandir",
+      "version": "2.1.5",
+      "license": "MIT",
+      "repository": "https://github.com/nodelib/nodelib/tree/master/packages/fs/fs.scandir",
+      "license_documents": {
+        "LICENSE": "9363d160bf41d46d83901a5d24fc3fe2094c2afc17b4a2378914b273977ee2de"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@nodelib/fs.stat",
+      "version": "2.0.5",
+      "license": "MIT",
+      "repository": "https://github.com/nodelib/nodelib/tree/master/packages/fs/fs.stat",
+      "license_documents": {
+        "LICENSE": "9363d160bf41d46d83901a5d24fc3fe2094c2afc17b4a2378914b273977ee2de"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@nodelib/fs.walk",
+      "version": "1.2.8",
+      "license": "MIT",
+      "repository": "https://github.com/nodelib/nodelib/tree/master/packages/fs/fs.walk",
+      "license_documents": {
+        "LICENSE": "9363d160bf41d46d83901a5d24fc3fe2094c2afc17b4a2378914b273977ee2de"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@oxc-project/types",
+      "version": "0.153.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/oxc-project/oxc.git",
+        "directory": "npm/oxc-types"
+      },
+      "license_documents": {
+        "LICENSE": "95ced5ecf1133fbf41d409b5555c86c344f83f3b019926057ddbc07cfdcc27b3"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@polka/url",
+      "version": "1.0.0-next.29",
+      "license": "MIT",
+      "repository": "lukeed/polka",
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/lukeed/polka/02cbdb529ddca0a9f3d225e2abb2931924219cc3/license": "ba573393f24555ac0528612ad39665fab5bdcc80330a61096024bbf5f736526d"
+      },
+      "upstream_supplements": [
+        {
+          "file": "@polka__url@1.0.0-next.29-license",
+          "url": "https://raw.githubusercontent.com/lukeed/polka/02cbdb529ddca0a9f3d225e2abb2931924219cc3/license",
+          "sha256": "ba573393f24555ac0528612ad39665fab5bdcc80330a61096024bbf5f736526d",
+          "npm_version": "1.0.0-next.29",
+          "npm_git_head": "02cbdb529ddca0a9f3d225e2abb2931924219cc3"
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@poppinss/colors",
+      "version": "4.1.6",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/poppinss/colors.git"
+      },
+      "license_documents": {
+        "LICENSE.md": "c21feb678df81fa8336bfb4d7e8e3f928273992cc6743af6178f8979cb8c8d9d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@poppinss/dumper",
+      "version": "0.6.5",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/poppinss/dumper.git"
+      },
+      "license_documents": {
+        "LICENSE.md": "bba2399e2c617b0577fc3f4e22299367625824959945318b17b39ac3c910ce5f"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@poppinss/exception",
+      "version": "1.2.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/poppinss/exception.git"
+      },
+      "license_documents": {
+        "LICENSE.md": "bba2399e2c617b0577fc3f4e22299367625824959945318b17b39ac3c910ce5f"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@resvg/resvg-js",
+      "version": "2.6.2",
+      "license": "MPL-2.0",
+      "repository": "git@github.com:yisibl/resvg-js.git",
+      "license_documents": {
+        "LICENSE": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@resvg/resvg-js-darwin-arm64",
+      "version": "2.6.2",
+      "license": "MPL-2.0",
+      "repository": "git@github.com:yisibl/resvg-js.git",
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/yisibl/resvg-js/9ca058462ac529120c8cc84ddcd6fef644cc5406/LICENSE": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1"
+      },
+      "upstream_supplements": [
+        {
+          "file": "@resvg__resvg-js-darwin-arm64@2.6.2-LICENSE",
+          "url": "https://raw.githubusercontent.com/yisibl/resvg-js/9ca058462ac529120c8cc84ddcd6fef644cc5406/LICENSE",
+          "sha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1",
+          "npm_version": "2.6.2",
+          "npm_git_head": "9ca058462ac529120c8cc84ddcd6fef644cc5406"
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@rolldown/binding-darwin-arm64",
+      "version": "1.2.13",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/rolldown/rolldown.git",
+        "directory": "packages/rolldown"
+      },
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/rolldown/rolldown/v1.2.13/LICENSE": "23ecfff35a5a2e80d92142f75228912c3b1abc4b5a8337a821ff4397e2f9f734",
+        "upstream: https://raw.githubusercontent.com/rolldown/rolldown/v1.2.13/THIRD-PARTY-LICENSE": "a877291d800ed43692f3f9ae09d8e01cc6f7293ad39d43896059c188ffbb8b7c"
+      },
+      "upstream_supplements": [
+        {
+          "file": "@rolldown__binding-darwin-arm64@1.2.13-LICENSE",
+          "url": "https://raw.githubusercontent.com/rolldown/rolldown/v1.2.13/LICENSE",
+          "sha256": "23ecfff35a5a2e80d92142f75228912c3b1abc4b5a8337a821ff4397e2f9f734",
+          "npm_version": "1.2.13",
+          "npm_git_head": null
+        },
+        {
+          "file": "@rolldown__binding-darwin-arm64@1.2.13-THIRD-PARTY-LICENSE",
+          "url": "https://raw.githubusercontent.com/rolldown/rolldown/v1.2.13/THIRD-PARTY-LICENSE",
+          "sha256": "a877291d800ed43692f3f9ae09d8e01cc6f7293ad39d43896059c188ffbb8b7c",
+          "npm_version": "1.2.13"
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@rolldown/pluginutils",
+      "version": "1.0.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/rolldown/plugins.git",
+        "directory": "packages/pluginutils"
+      },
+      "license_documents": {
+        "LICENSE": "e1919b3b98b8bf6c1b99fcc60a0ed46027c97ac947432e1278446c9606f50161"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@shikijs/core",
+      "version": "4.0.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/shikijs/shiki.git",
+        "directory": "packages/core"
+      },
+      "license_documents": {
+        "LICENSE": "7a9d8d01038aeacf9e5bcdabbddf2a7815200dce9fc1118468cc553e00ae3eee"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@shikijs/engine-javascript",
+      "version": "4.0.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/shikijs/shiki.git",
+        "directory": "packages/engine-javascript"
+      },
+      "license_documents": {
+        "LICENSE": "7a9d8d01038aeacf9e5bcdabbddf2a7815200dce9fc1118468cc553e00ae3eee"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@shikijs/engine-oniguruma",
+      "version": "4.0.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/shikijs/shiki.git",
+        "directory": "packages/engine-oniguruma"
+      },
+      "license_documents": {
+        "LICENSE": "7a9d8d01038aeacf9e5bcdabbddf2a7815200dce9fc1118468cc553e00ae3eee"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@shikijs/langs",
+      "version": "4.0.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/shikijs/shiki.git",
+        "directory": "packages/langs"
+      },
+      "license_documents": {
+        "LICENSE": "7a9d8d01038aeacf9e5bcdabbddf2a7815200dce9fc1118468cc553e00ae3eee"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@shikijs/primitive",
+      "version": "4.0.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/shikijs/shiki.git",
+        "directory": "packages/primitive"
+      },
+      "license_documents": {
+        "LICENSE": "7a9d8d01038aeacf9e5bcdabbddf2a7815200dce9fc1118468cc553e00ae3eee"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@shikijs/themes",
+      "version": "4.0.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/shikijs/shiki.git",
+        "directory": "packages/themes"
+      },
+      "license_documents": {
+        "LICENSE": "7a9d8d01038aeacf9e5bcdabbddf2a7815200dce9fc1118468cc553e00ae3eee"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@shikijs/types",
+      "version": "4.0.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/shikijs/shiki.git",
+        "directory": "packages/types"
+      },
+      "license_documents": {
+        "LICENSE": "7a9d8d01038aeacf9e5bcdabbddf2a7815200dce9fc1118468cc553e00ae3eee"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@shikijs/vscode-textmate",
+      "version": "10.0.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/shikijs/vscode-textmate"
+      },
+      "license_documents": {
+        "LICENSE.md": "b5cb7ff7859e7d282d98fc43ab081b0dda5dc659dc3385cf65740c759a7e6a6c"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@shuding/opentype.js",
+      "version": "1.4.0-beta.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/opentypejs/opentype.js.git"
+      },
+      "license_documents": {
+        "LICENSE": "a5b87c9bc191e7f9c06b07bd7cbbed3ed846dfdb50e859484b2c245aa1ab2e61"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@sindresorhus/is",
+      "version": "7.2.0",
+      "license": "MIT",
+      "repository": "sindresorhus/is",
+      "license_documents": {
+        "license": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@speed-highlight/core",
+      "version": "1.2.24",
+      "license": "CC0-1.0",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/speed-highlight/core.git"
+      },
+      "license_documents": {
+        "LICENSE": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@standard-schema/spec",
+      "version": "1.1.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/standard-schema/standard-schema"
+      },
+      "license_documents": {
+        "LICENSE": "653b779005a3a4d64a7288c940f7b9a0e8f0b1e0375f6aa6af9473caf131e564"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@sveltejs/acorn-typescript",
+      "version": "1.0.13",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/sveltejs/acorn-typescript.git"
+      },
+      "license_documents": {
+        "LICENSE.md": "54e58ba168330ad6c315813fd50e729b2748d1ed38314fd30b833a4e89e15f2a"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@sveltejs/adapter-cloudflare",
+      "version": "7.2.9",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/sveltejs/kit.git",
+        "directory": "packages/adapter-cloudflare"
+      },
+      "license_documents": {
+        "LICENSE": "ac6ecdc526c9e6aec1db76f0e8dfe344d792380e974686476e7c512152ae2636"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@sveltejs/adapter-static",
+      "version": "3.0.10",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/sveltejs/kit.git",
+        "directory": "packages/adapter-static"
+      },
+      "license_documents": {
+        "LICENSE": "ac6ecdc526c9e6aec1db76f0e8dfe344d792380e974686476e7c512152ae2636"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@sveltejs/kit",
+      "version": "2.70.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/sveltejs/kit.git",
+        "directory": "packages/kit"
+      },
+      "license_documents": {
+        "LICENSE": "ac6ecdc526c9e6aec1db76f0e8dfe344d792380e974686476e7c512152ae2636"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@sveltejs/load-config",
+      "version": "0.2.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/sveltejs/language-tools.git"
+      },
+      "license_documents": {
+        "LICENSE": "ada595bb2ec8d71616dde1b956edb8fbad63eadab32b8d9ab9310a1aef08e5c5"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@sveltejs/vite-plugin-svelte",
+      "version": "7.3.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/sveltejs/vite-plugin-svelte.git",
+        "directory": "packages/vite-plugin-svelte"
+      },
+      "license_documents": {
+        "LICENSE": "26d4779495753b2fb772445ca50f83f03b431522bcd410a1643cf1097fbcefc0"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@tailwindcss/node",
+      "version": "4.3.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/tailwindlabs/tailwindcss.git",
+        "directory": "packages/@tailwindcss-node"
+      },
+      "license_documents": {
+        "LICENSE": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@tailwindcss/oxide",
+      "version": "4.3.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tailwindlabs/tailwindcss.git",
+        "directory": "crates/node"
+      },
+      "license_documents": {
+        "LICENSE": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@tailwindcss/oxide-darwin-arm64",
+      "version": "4.3.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tailwindlabs/tailwindcss.git",
+        "directory": "crates/node/npm/darwin-arm64"
+      },
+      "license_documents": {
+        "LICENSE": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@tailwindcss/vite",
+      "version": "4.3.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/tailwindlabs/tailwindcss.git",
+        "directory": "packages/@tailwindcss-vite"
+      },
+      "license_documents": {
+        "LICENSE": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@types/cookie",
+      "version": "0.6.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/cookie"
+      },
+      "license_documents": {
+        "LICENSE": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@types/debug",
+      "version": "4.1.13",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/debug"
+      },
+      "license_documents": {
+        "LICENSE": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@types/estree",
+      "version": "1.0.9",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/estree"
+      },
+      "license_documents": {
+        "LICENSE": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@types/hast",
+      "version": "3.0.5",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/hast"
+      },
+      "license_documents": {
+        "LICENSE": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@types/katex",
+      "version": "0.16.8",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/katex"
+      },
+      "license_documents": {
+        "LICENSE": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@types/mdast",
+      "version": "4.0.4",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/mdast"
+      },
+      "license_documents": {
+        "LICENSE": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@types/ms",
+      "version": "2.1.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/ms"
+      },
+      "license_documents": {
+        "LICENSE": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@types/node",
+      "version": "25.9.9",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/node"
+      },
+      "license_documents": {
+        "LICENSE": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@types/unist",
+      "version": "2.0.11",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/unist"
+      },
+      "license_documents": {
+        "LICENSE": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@types/unist",
+      "version": "3.0.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/unist"
+      },
+      "license_documents": {
+        "LICENSE": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "@ungap/structured-clone",
+      "version": "1.4.0",
+      "license": "ISC",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ungap/structured-clone.git"
+      },
+      "license_documents": {
+        "LICENSE": "dc6d4961d8b6ee747231582ae9c53ce1d66bf76bc9f5a28f554c0e97210953bf"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "acorn",
+      "version": "8.19.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/acornjs/acorn.git"
+      },
+      "license_documents": {
+        "LICENSE": "76a876cf886ff9be2a8b5e2e86514fed06223c8c9f0c1e9ee9606e93841e00b7"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "argparse",
+      "version": "1.0.10",
+      "license": "MIT",
+      "repository": "nodeca/argparse",
+      "license_documents": {
+        "LICENSE": "c8442419dc614089ea022b3da6bfc089b41a58fb7b9030d1e651f2f36189dce2"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "aria-query",
+      "version": "5.3.1",
+      "license": "Apache-2.0",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/A11yance/aria-query.git"
+      },
+      "license_documents": {
+        "LICENSE": "c8df456c7ccba74b959087dff494d4ac2a12dfb0400c08b46b2494a08a000567"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "axobject-query",
+      "version": "4.1.0",
+      "license": "Apache-2.0",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/A11yance/axobject-query.git"
+      },
+      "license_documents": {
+        "LICENSE": "c8df456c7ccba74b959087dff494d4ac2a12dfb0400c08b46b2494a08a000567"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "bail",
+      "version": "2.0.2",
+      "license": "MIT",
+      "repository": "wooorm/bail",
+      "license_documents": {
+        "license": "63cb98b3f6abfb3c3592c16f88253c1bdc834087bf52671e8ce5609e4eb693cf"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "base64-js",
+      "version": "0.0.8",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/beatgammit/base64-js.git"
+      },
+      "license_documents": {
+        "LICENSE.MIT": "136239d1783a151cdbf6fd7935dd945082b9d0ee2cbb8497cc0ae49e8a743a47"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "blake3-wasm",
+      "version": "2.1.5",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/connor4312/blake3.git"
+      },
+      "license_documents": {
+        "LICENSE": "6ae51be712bd278ca37cd2204a6e836d71aacea5b7b8210d5a95c0e02a15dc35"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "braces",
+      "version": "3.0.3",
+      "license": "MIT",
+      "repository": "micromatch/braces",
+      "license_documents": {
+        "LICENSE": "35bdd8a44339719441900fb50fbefc5e2dca1ca662cbaed7a687de842c8b70f2"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "camelize",
+      "version": "1.0.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/ljharb/camelize.git"
+      },
+      "license_documents": {
+        "LICENSE": "435a6722c786b0a56fbe7387028f1d9d3f3a2d0fb615bb8fee118727c3f59b7b"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "ccount",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "wooorm/ccount",
+      "license_documents": {
+        "license": "63cb98b3f6abfb3c3592c16f88253c1bdc834087bf52671e8ce5609e4eb693cf"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "character-entities",
+      "version": "2.0.2",
+      "license": "MIT",
+      "repository": "wooorm/character-entities",
+      "license_documents": {
+        "license": "63cb98b3f6abfb3c3592c16f88253c1bdc834087bf52671e8ce5609e4eb693cf"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "character-entities-html4",
+      "version": "2.1.0",
+      "license": "MIT",
+      "repository": "wooorm/character-entities-html4",
+      "license_documents": {
+        "license": "63cb98b3f6abfb3c3592c16f88253c1bdc834087bf52671e8ce5609e4eb693cf"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "character-entities-legacy",
+      "version": "3.0.0",
+      "license": "MIT",
+      "repository": "wooorm/character-entities-legacy",
+      "license_documents": {
+        "license": "63cb98b3f6abfb3c3592c16f88253c1bdc834087bf52671e8ce5609e4eb693cf"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "chokidar",
+      "version": "4.0.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/paulmillr/chokidar.git"
+      },
+      "license_documents": {
+        "LICENSE": "bdfd5e0edb6089e6586c8f15e6a86fab83ffbeeda3b3b7b33734ccb8c5906965"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "clsx",
+      "version": "2.1.1",
+      "license": "MIT",
+      "repository": "lukeed/clsx",
+      "license_documents": {
+        "license": "9a9edad7baae52622bddf3c15b2ef8a33d2c89f2d25408ad13e8a7481c6b0c97"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "color-name",
+      "version": "1.1.4",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git@github.com:colorjs/color-name.git"
+      },
+      "license_documents": {
+        "LICENSE": "c064f7a3e353bc1bc977f3c897941c75ef763f44f41677e0a15370ca0853d6e2"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "comma-separated-tokens",
+      "version": "2.0.3",
+      "license": "MIT",
+      "repository": "wooorm/comma-separated-tokens",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "commander",
+      "version": "14.0.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tj/commander.js.git"
+      },
+      "license_documents": {
+        "LICENSE": "04512a63dce4d2d506ad612dc0bd7681ccf6e3655f7b6eaef7dfac8323d1ec0b"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "commander",
+      "version": "8.3.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/tj/commander.js.git"
+      },
+      "license_documents": {
+        "LICENSE": "04512a63dce4d2d506ad612dc0bd7681ccf6e3655f7b6eaef7dfac8323d1ec0b"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "cookie",
+      "version": "0.6.0",
+      "license": "MIT",
+      "repository": "jshttp/cookie",
+      "license_documents": {
+        "LICENSE": "c02110eedc16c7114f1a9bdc026c65626ce1d9c7e27fd51a8e0feee8a48a6858"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "cookie",
+      "version": "1.1.1",
+      "license": "MIT",
+      "repository": "jshttp/cookie",
+      "license_documents": {
+        "LICENSE": "c02110eedc16c7114f1a9bdc026c65626ce1d9c7e27fd51a8e0feee8a48a6858"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "cross-spawn",
+      "version": "7.0.6",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git@github.com:moxystudio/node-cross-spawn.git"
+      },
+      "license_documents": {
+        "LICENSE": "aaa78451b6fecd1b9c4594c796c133c0e90cad100372ff8bc6de615e9ef9adf1"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "css-background-parser",
+      "version": "0.1.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gilmoreorless/css-background-parser.git"
+      },
+      "license_documents": {
+        "LICENSE": "d9be3156783d47481385a916dfb1cc4b5289577e71b548a377ec71940270b8d5"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "css-box-shadow",
+      "version": "1.0.0-3",
+      "license": "MIT",
+      "repository": null,
+      "license_documents": {
+        "upstream README (license declaration)": "9ba68a0c314d2258bbbe2335dd9c6a91ea4f864f87aa3279cb4ded183df231a0",
+        "upstream package.json (MIT declaration and attribution)": "5f1bd9c8e9751887808d9f04c51aeb18e823f67f84f8d1ffcadece2e23e7a952"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": false
+    },
+    {
+      "name": "css-color-keywords",
+      "version": "1.0.0",
+      "license": "ISC",
+      "repository": "sonicdoe/css-color-keywords",
+      "license_documents": {
+        "LICENSE": "17a548211b4a0cfaa8991068a39d30b0e7ef5c199321bb1c3484509529a8df05"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "css-gradient-parser",
+      "version": "0.0.17",
+      "license": "MIT",
+      "repository": null,
+      "license_documents": {
+        "LICENSE": "112f34fd9cb305e61b039d047dab3835b3ce277b7a26c56b372022473b8f610a"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "css-to-react-native",
+      "version": "3.2.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/styled-components/css-to-react-native.git"
+      },
+      "license_documents": {
+        "LICENSE.md": "9200b800b2460900fe3bff06010726f3a29079511e80245f43a24ef89c0e9d38"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "debug",
+      "version": "4.4.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/debug-js/debug.git"
+      },
+      "license_documents": {
+        "LICENSE": "3a61c6c96caf5c1d9b623fb9b04c822b783dfcb78aa7e49c76a3f643e6ed7f95"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "decode-named-character-reference",
+      "version": "1.3.0",
+      "license": "MIT",
+      "repository": "wooorm/decode-named-character-reference",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "deepmerge",
+      "version": "4.3.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/TehShrike/deepmerge.git"
+      },
+      "license_documents": {
+        "license.txt": "6cfc4687cb2f2d86f4a77e6b526290d3878e5e512f3fec2f4cb36a9cb36f798b"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "dequal",
+      "version": "2.0.3",
+      "license": "MIT",
+      "repository": "lukeed/dequal",
+      "license_documents": {
+        "license": "306fa513e39b23a6e8747520de761809d206b99800ef41907b530226574c59ae"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "detect-libc",
+      "version": "2.1.2",
+      "license": "Apache-2.0",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/lovell/detect-libc.git"
+      },
+      "license_documents": {
+        "LICENSE": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "devalue",
+      "version": "5.9.4",
+      "license": "MIT",
+      "repository": "sveltejs/devalue",
+      "license_documents": {
+        "LICENSE": "e399db7e952e45cae84f1b53d72ba8dbad2daaa7ab8cd1f0ab72fea5ab73b225"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "devlop",
+      "version": "1.1.0",
+      "license": "MIT",
+      "repository": "wooorm/devlop",
+      "license_documents": {
+        "license": "6f296a5eccc1dc96714bb94ebaa9cac25b0a1467d74cc5263ac4d0646ab01f62"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "emoji-regex-xs",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/slevithan/emoji-regex-xs.git"
+      },
+      "license_documents": {
+        "LICENSE": "3d19c2b6246b3072547af2bd05e6b4c09bd3d15955590f1f1e1d20382c919a49"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "enhanced-resolve",
+      "version": "5.26.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/webpack/enhanced-resolve.git"
+      },
+      "license_documents": {
+        "LICENSE": "9068a8782d2fb4c6e432cfa25334efa56f722822180570802bf86e71b6003b1e"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "entities",
+      "version": "6.0.1",
+      "license": "BSD-2-Clause",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/fb55/entities.git"
+      },
+      "license_documents": {
+        "LICENSE": "cb992345949ccd6e8394b2cd6c465f7b897c864f845937dbf64e8997f389e164"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "error-stack-parser-es",
+      "version": "1.0.5",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/antfu/error-stack-parser-es.git"
+      },
+      "license_documents": {
+        "LICENSE": "fe99ed9e409014494a8147a5276cd079eae73f6998179af39ba596e7de75e8a9"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "esbuild",
+      "version": "0.28.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/evanw/esbuild.git"
+      },
+      "license_documents": {
+        "LICENSE.md": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "escape-html",
+      "version": "1.0.3",
+      "license": "MIT",
+      "repository": "component/escape-html",
+      "license_documents": {
+        "LICENSE": "255aa557a1f55224ce522f311629c0bf20854740a67955cefd798fbd1d3d1ded"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "escape-string-regexp",
+      "version": "5.0.0",
+      "license": "MIT",
+      "repository": "sindresorhus/escape-string-regexp",
+      "license_documents": {
+        "license": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "esm-env",
+      "version": "1.2.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/benmccann/esm-env.git"
+      },
+      "license_documents": {
+        "LICENSE": "6df5276ee7531fcc5446f19082c12e77bb6c5f081fd2b6d6cf88180a5ee36acd"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "esprima",
+      "version": "4.0.1",
+      "license": "BSD-2-Clause",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/jquery/esprima.git"
+      },
+      "license_documents": {
+        "LICENSE.BSD": "94bcb9959136723aa4fb36e1a6c4d5c662a2369978cfae344dabfb83ae619e79"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "esrap",
+      "version": "2.4.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/sveltejs/esrap.git"
+      },
+      "license_documents": {
+        "LICENSE": "8f8f0696ab4041a885d28bddf82e2ad673a6522cb644d6f972237f4f6e172a1d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "extend",
+      "version": "3.0.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/justmoon/node-extend.git"
+      },
+      "license_documents": {
+        "LICENSE": "97af7428f93afbab9bf79cd09254da1357161794f4255eb1b4599f04dd2d2e7c"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "extend-shallow",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "jonschlinkert/extend-shallow",
+      "license_documents": {
+        "LICENSE": "daca23d50b0f54d36d6da1b16c82dfea6461e2ae20de0e869957e44cc6d34781"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "fast-glob",
+      "version": "3.3.3",
+      "license": "MIT",
+      "repository": "mrmlnc/fast-glob",
+      "license_documents": {
+        "LICENSE": "9363d160bf41d46d83901a5d24fc3fe2094c2afc17b4a2378914b273977ee2de"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "fastq",
+      "version": "1.20.3",
+      "license": "ISC",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/mcollina/fastq.git"
+      },
+      "license_documents": {
+        "LICENSE": "c3367f6d01a79d368fc4fbb41b3615fcd92f243d6597ab96742f6f976f9325af"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "fdir",
+      "version": "6.5.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/thecodrr/fdir.git"
+      },
+      "license_documents": {
+        "LICENSE": "9a39f2aadab11a3697edd668ff2d8ad885b649737b7ab4d3bf12b34e5ada0c86"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "fflate",
+      "version": "0.7.5",
+      "license": "MIT",
+      "repository": "https://github.com/101arrowz/fflate",
+      "license_documents": {
+        "LICENSE": "62249119bb7df6e54300f37a37145c26a6d4420410aac8881a119c5b427cf751"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "fill-range",
+      "version": "7.1.1",
+      "license": "MIT",
+      "repository": "jonschlinkert/fill-range",
+      "license_documents": {
+        "LICENSE": "35bdd8a44339719441900fb50fbefc5e2dca1ca662cbaed7a687de842c8b70f2"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "fsevents",
+      "version": "2.3.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/fsevents/fsevents.git"
+      },
+      "license_documents": {
+        "LICENSE": "2a8a5d6197bb97a018b8a190dd3ed853d750ca87c8e80c17aad41d6c6ff448e1"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "github-slugger",
+      "version": "2.0.0",
+      "license": "ISC",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/Flet/github-slugger.git"
+      },
+      "license_documents": {
+        "LICENSE": "542aefa99456832996da0cc63b14d8b89f04a30ba403e241dbe3e5aaf49fa372"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "glob-parent",
+      "version": "5.1.2",
+      "license": "ISC",
+      "repository": "gulpjs/glob-parent",
+      "license_documents": {
+        "LICENSE": "2c46f1325bd3822a33c1e2c1e49c18d13127ac00f9c8b3b79196c7a126f73cd9"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "graceful-fs",
+      "version": "4.2.11",
+      "license": "ISC",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/isaacs/node-graceful-fs"
+      },
+      "license_documents": {
+        "LICENSE": "f65c5d9f22a317b2a10803bd1868461ce6499c2ed7217bc80c0cc772a748789c"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "gray-matter",
+      "version": "4.0.3",
+      "license": "MIT",
+      "repository": "jonschlinkert/gray-matter",
+      "license_documents": {
+        "LICENSE": "e70ff771504ba41f2be55de812a017ff46433d7a250c862e38fc419159e44500"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hast-util-from-dom",
+      "version": "5.0.1",
+      "license": "ISC",
+      "repository": "syntax-tree/hast-util-from-dom",
+      "license_documents": {
+        "license": "c01b44788e1829e81cb20d621c93c07a08ea010063118b956739f2ab050d17ca"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hast-util-from-html",
+      "version": "2.0.3",
+      "license": "MIT",
+      "repository": "syntax-tree/hast-util-from-html",
+      "license_documents": {
+        "license": "e620971c29d750df627f71f4e629618ef8fcbbea134ab95b344fc0c1a757cad1"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hast-util-from-html-isomorphic",
+      "version": "2.0.0",
+      "license": "MIT",
+      "repository": "syntax-tree/hast-util-from-html-isomorphic",
+      "license_documents": {
+        "license": "fb5678944a6345b1d30a8fe006aef2be2f6bb1c22431a7cc92674fb0944a7578"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hast-util-from-parse5",
+      "version": "8.0.3",
+      "license": "MIT",
+      "repository": "syntax-tree/hast-util-from-parse5",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hast-util-heading-rank",
+      "version": "3.0.0",
+      "license": "MIT",
+      "repository": "syntax-tree/hast-util-heading-rank",
+      "license_documents": {
+        "license": "536804b3adbff17dbbb9ed0d2bf9655b78f07640278581e37e3d7475282d5e61"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hast-util-is-element",
+      "version": "3.0.0",
+      "license": "MIT",
+      "repository": "syntax-tree/hast-util-is-element",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hast-util-parse-selector",
+      "version": "4.0.0",
+      "license": "MIT",
+      "repository": "syntax-tree/hast-util-parse-selector",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hast-util-raw",
+      "version": "9.1.0",
+      "license": "MIT",
+      "repository": "syntax-tree/hast-util-raw",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hast-util-to-html",
+      "version": "9.0.5",
+      "license": "MIT",
+      "repository": "syntax-tree/hast-util-to-html",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hast-util-to-parse5",
+      "version": "8.0.1",
+      "license": "MIT",
+      "repository": "syntax-tree/hast-util-to-parse5",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hast-util-to-string",
+      "version": "3.0.0",
+      "license": "MIT",
+      "repository": "https://github.com/rehypejs/rehype-minify/tree/main/packages/hast-util-to-string",
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/rehypejs/rehype-minify/142a16cf75ea59ab9a32b1a38e02cc42cdca3f6d/license": "8bcb6db133b417da60891d74be6ce583162ba9143be32ccc9e24cea7913ead14"
+      },
+      "upstream_supplements": [
+        {
+          "file": "hast-util-to-string@3.0.0-LICENSE",
+          "url": "https://raw.githubusercontent.com/rehypejs/rehype-minify/142a16cf75ea59ab9a32b1a38e02cc42cdca3f6d/license",
+          "sha256": "8bcb6db133b417da60891d74be6ce583162ba9143be32ccc9e24cea7913ead14"
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hast-util-to-text",
+      "version": "4.0.2",
+      "license": "MIT",
+      "repository": "syntax-tree/hast-util-to-text",
+      "license_documents": {
+        "license": "691115fe0234b1f05cb52a9c4aded367e389784a6501af824e85a7e54ca47d38"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hast-util-whitespace",
+      "version": "3.0.0",
+      "license": "MIT",
+      "repository": "syntax-tree/hast-util-whitespace",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hastscript",
+      "version": "9.0.1",
+      "license": "MIT",
+      "repository": "syntax-tree/hastscript",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "hex-rgb",
+      "version": "4.3.0",
+      "license": "MIT",
+      "repository": "sindresorhus/hex-rgb",
+      "license_documents": {
+        "license": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "html-void-elements",
+      "version": "3.0.0",
+      "license": "MIT",
+      "repository": "wooorm/html-void-elements",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "is-extendable",
+      "version": "0.1.1",
+      "license": "MIT",
+      "repository": "jonschlinkert/is-extendable",
+      "license_documents": {
+        "LICENSE": "0798f37cff4a3f438c071316e41f94ffe110116a313ab0fc4f8caa07218f1f0f"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "is-extglob",
+      "version": "2.1.1",
+      "license": "MIT",
+      "repository": "jonschlinkert/is-extglob",
+      "license_documents": {
+        "LICENSE": "73b5283588baa142c5baaef5f56d3e8fdea7a30b214e8c5737e87640f882453a"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "is-glob",
+      "version": "4.0.3",
+      "license": "MIT",
+      "repository": "micromatch/is-glob",
+      "license_documents": {
+        "LICENSE": "4cd903859549d4b20b571041f96dfae1136ed079c476126268f9d7cc1b611150"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "is-number",
+      "version": "7.0.0",
+      "license": "MIT",
+      "repository": "jonschlinkert/is-number",
+      "license_documents": {
+        "LICENSE": "35bdd8a44339719441900fb50fbefc5e2dca1ca662cbaed7a687de842c8b70f2"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "is-plain-obj",
+      "version": "4.1.0",
+      "license": "MIT",
+      "repository": "sindresorhus/is-plain-obj",
+      "license_documents": {
+        "license": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "is-reference",
+      "version": "3.0.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Rich-Harris/is-reference.git"
+      },
+      "license_documents": {
+        "upstream README (license declaration)": "2acc01c7ca4596ec1751045eca54e1f27bd785deaadc09d287d76f0d26cbbf87",
+        "upstream package.json (MIT declaration and attribution)": "5ab4c14eb3e5726b0704c624ee6649e8026dc8a14471e7cdc4c7d55699162ec7"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": false
+    },
+    {
+      "name": "isexe",
+      "version": "2.0.0",
+      "license": "ISC",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/isaacs/isexe.git"
+      },
+      "license_documents": {
+        "LICENSE": "4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "jiti",
+      "version": "2.7.0",
+      "license": "MIT",
+      "repository": "unjs/jiti",
+      "license_documents": {
+        "LICENSE": "46231df5a7733c3f52f11b71f3df61813007745b62b09031acfb45fb42d75082"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "js-yaml",
+      "version": "3.15.2",
+      "license": "MIT",
+      "repository": "nodeca/js-yaml",
+      "license_documents": {
+        "LICENSE": "a07bc24468b9654ce76a547d47a2db282d07733b715db4c73a98bd63961f9550"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "katex",
+      "version": "0.16.47",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/KaTeX/KaTeX.git"
+      },
+      "license_documents": {
+        "LICENSE": "766ccc1f306c885aa45542a9846bbd0a505b27a0374f146778171c2254ce18e3"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "kind-of",
+      "version": "6.0.3",
+      "license": "MIT",
+      "repository": "jonschlinkert/kind-of",
+      "license_documents": {
+        "LICENSE": "4cd903859549d4b20b571041f96dfae1136ed079c476126268f9d7cc1b611150"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "kleur",
+      "version": "4.1.5",
+      "license": "MIT",
+      "repository": "lukeed/kleur",
+      "license_documents": {
+        "license": "306fa513e39b23a6e8747520de761809d206b99800ef41907b530226574c59ae"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "lightningcss",
+      "version": "1.32.0",
+      "license": "MPL-2.0",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/parcel-bundler/lightningcss.git"
+      },
+      "license_documents": {
+        "LICENSE": "5eba353fe5076ac3432177f8ab1cf75e3afcd0584251e37c3bfead5f447d040e"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "lightningcss",
+      "version": "1.33.0",
+      "license": "MPL-2.0",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/parcel-bundler/lightningcss.git"
+      },
+      "license_documents": {
+        "LICENSE": "5eba353fe5076ac3432177f8ab1cf75e3afcd0584251e37c3bfead5f447d040e"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "lightningcss-darwin-arm64",
+      "version": "1.32.0",
+      "license": "MPL-2.0",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/parcel-bundler/lightningcss.git"
+      },
+      "license_documents": {
+        "LICENSE": "5eba353fe5076ac3432177f8ab1cf75e3afcd0584251e37c3bfead5f447d040e"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "lightningcss-darwin-arm64",
+      "version": "1.33.0",
+      "license": "MPL-2.0",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/parcel-bundler/lightningcss.git"
+      },
+      "license_documents": {
+        "LICENSE": "5eba353fe5076ac3432177f8ab1cf75e3afcd0584251e37c3bfead5f447d040e"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "linebreak",
+      "version": "1.1.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/devongovett/linebreaker.git"
+      },
+      "license_documents": {
+        "LICENSE": "cf22b8198f0886a8d4626121579114f23141070e1fceab02ab3c1c361e163440"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "locate-character",
+      "version": "3.0.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://gitlab.com/Rich-Harris/locate-character.git"
+      },
+      "license_documents": {
+        "upstream README (license declaration)": "47ed524f92c6aa416672bf3c48f88fd0c9dfde93f6097683820def1d2db65456",
+        "upstream package.json (MIT declaration and attribution)": "b6a378f56e34ba7323a3c7a9e7e265acb49dbd616b1219477ca90fc0fc21b16d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": false
+    },
+    {
+      "name": "longest-streak",
+      "version": "3.1.0",
+      "license": "MIT",
+      "repository": "wooorm/longest-streak",
+      "license_documents": {
+        "license": "9f084fac69d8cf1e6ce983ba5a3499c7695ed74a26ec625c38f0fd19fddd5e10"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "magic-string",
+      "version": "0.30.21",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Rich-Harris/magic-string.git"
+      },
+      "license_documents": {
+        "LICENSE": "1cbe51b907662f6cb1492b16c359384a595180bf0e4d101603ed525e75c4e484"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "magic-string",
+      "version": "1.4.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Rich-Harris/magic-string.git"
+      },
+      "license_documents": {
+        "LICENSE": "1cbe51b907662f6cb1492b16c359384a595180bf0e4d101603ed525e75c4e484"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "markdown-table",
+      "version": "3.0.4",
+      "license": "MIT",
+      "repository": "wooorm/markdown-table",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mdast-util-find-and-replace",
+      "version": "3.0.3",
+      "license": "MIT",
+      "repository": "syntax-tree/mdast-util-find-and-replace",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mdast-util-from-markdown",
+      "version": "2.1.0",
+      "license": "MIT",
+      "repository": "syntax-tree/mdast-util-from-markdown",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mdast-util-gfm",
+      "version": "3.1.0",
+      "license": "MIT",
+      "repository": "syntax-tree/mdast-util-gfm",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mdast-util-gfm-autolink-literal",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "syntax-tree/mdast-util-gfm-autolink-literal",
+      "license_documents": {
+        "license": "536804b3adbff17dbbb9ed0d2bf9655b78f07640278581e37e3d7475282d5e61"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mdast-util-gfm-footnote",
+      "version": "2.1.0",
+      "license": "MIT",
+      "repository": "syntax-tree/mdast-util-gfm-footnote",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mdast-util-gfm-strikethrough",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "syntax-tree/mdast-util-gfm-strikethrough",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mdast-util-gfm-table",
+      "version": "2.0.0",
+      "license": "MIT",
+      "repository": "syntax-tree/mdast-util-gfm-table",
+      "license_documents": {
+        "license": "536804b3adbff17dbbb9ed0d2bf9655b78f07640278581e37e3d7475282d5e61"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mdast-util-gfm-task-list-item",
+      "version": "2.0.0",
+      "license": "MIT",
+      "repository": "syntax-tree/mdast-util-gfm-task-list-item",
+      "license_documents": {
+        "license": "536804b3adbff17dbbb9ed0d2bf9655b78f07640278581e37e3d7475282d5e61"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mdast-util-math",
+      "version": "3.0.0",
+      "license": "MIT",
+      "repository": "syntax-tree/mdast-util-math",
+      "license_documents": {
+        "license": "536804b3adbff17dbbb9ed0d2bf9655b78f07640278581e37e3d7475282d5e61"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mdast-util-phrasing",
+      "version": "4.1.0",
+      "license": "MIT",
+      "repository": "syntax-tree/mdast-util-phrasing",
+      "license_documents": {
+        "license": "b6d1a4e1831b177acc96f22a817d4f0f4c18419355badc3125754445fc69e3a7"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mdast-util-to-hast",
+      "version": "13.2.1",
+      "license": "MIT",
+      "repository": "syntax-tree/mdast-util-to-hast",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mdast-util-to-markdown",
+      "version": "2.2.0",
+      "license": "MIT",
+      "repository": "syntax-tree/mdast-util-to-markdown",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mdast-util-to-string",
+      "version": "4.0.0",
+      "license": "MIT",
+      "repository": "syntax-tree/mdast-util-to-string",
+      "license_documents": {
+        "license": "63cb98b3f6abfb3c3592c16f88253c1bdc834087bf52671e8ce5609e4eb693cf"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mdsvex",
+      "version": "0.12.7",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/pngwn/MDsveX.git"
+      },
+      "license_documents": {
+        "LICENSE": "76dedf6d5f50d6efc3239e7e8f2d225b512d33e293f42fd41f2b98693e415329"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "merge2",
+      "version": "1.4.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git@github.com:teambition/merge2.git"
+      },
+      "license_documents": {
+        "LICENSE": "b2590e53ea6e050512c3993bfc746c394bbba9242fd6909245201bdc1dc6862a"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark",
+      "version": "4.0.3",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-core-commonmark",
+      "version": "2.0.4",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-core-commonmark",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-extension-gfm",
+      "version": "3.0.0",
+      "license": "MIT",
+      "repository": "micromark/micromark-extension-gfm",
+      "license_documents": {
+        "license": "536804b3adbff17dbbb9ed0d2bf9655b78f07640278581e37e3d7475282d5e61"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-extension-gfm-autolink-literal",
+      "version": "2.1.0",
+      "license": "MIT",
+      "repository": "micromark/micromark-extension-gfm-autolink-literal",
+      "license_documents": {
+        "license": "536804b3adbff17dbbb9ed0d2bf9655b78f07640278581e37e3d7475282d5e61"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-extension-gfm-footnote",
+      "version": "2.1.0",
+      "license": "MIT",
+      "repository": "micromark/micromark-extension-gfm-footnote",
+      "license_documents": {
+        "license": "807a88522a850092aece49486207c17c313c4d5708ac276524840fe1caa0b0fa"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-extension-gfm-strikethrough",
+      "version": "2.1.0",
+      "license": "MIT",
+      "repository": "micromark/micromark-extension-gfm-strikethrough",
+      "license_documents": {
+        "license": "536804b3adbff17dbbb9ed0d2bf9655b78f07640278581e37e3d7475282d5e61"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-extension-gfm-table",
+      "version": "2.1.2",
+      "license": "MIT",
+      "repository": "micromark/micromark-extension-gfm-table",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-extension-gfm-tagfilter",
+      "version": "2.0.0",
+      "license": "MIT",
+      "repository": "micromark/micromark-extension-gfm-tagfilter",
+      "license_documents": {
+        "license": "536804b3adbff17dbbb9ed0d2bf9655b78f07640278581e37e3d7475282d5e61"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-extension-gfm-task-list-item",
+      "version": "2.1.0",
+      "license": "MIT",
+      "repository": "micromark/micromark-extension-gfm-task-list-item",
+      "license_documents": {
+        "license": "536804b3adbff17dbbb9ed0d2bf9655b78f07640278581e37e3d7475282d5e61"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-extension-math",
+      "version": "3.1.0",
+      "license": "MIT",
+      "repository": "micromark/micromark-extension-math",
+      "license_documents": {
+        "license": "536804b3adbff17dbbb9ed0d2bf9655b78f07640278581e37e3d7475282d5e61"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-factory-destination",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-factory-destination",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-factory-label",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-factory-label",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-factory-space",
+      "version": "2.1.0",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-factory-space",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-factory-title",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-factory-title",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-factory-whitespace",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-factory-whitespace",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-character",
+      "version": "2.1.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-character",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-chunked",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-chunked",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-classify-character",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-classify-character",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-combine-extensions",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-combine-extensions",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-decode-numeric-character-reference",
+      "version": "2.0.2",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-decode-numeric-character-reference",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-decode-string",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-decode-string",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-edit-map",
+      "version": "1.0.0",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-edit-map",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-encode",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-encode",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-html-tag-name",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-html-tag-name",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-normalize-identifier",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-normalize-identifier",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-resolve-all",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-resolve-all",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-sanitize-uri",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-sanitize-uri",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-subtokenize",
+      "version": "2.1.0",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-subtokenize",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-symbol",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-symbol",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromark-util-types",
+      "version": "2.0.3",
+      "license": "MIT",
+      "repository": "https://github.com/micromark/micromark/tree/main/packages/micromark-util-types",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "micromatch",
+      "version": "4.0.8",
+      "license": "MIT",
+      "repository": "micromatch/micromatch",
+      "license_documents": {
+        "LICENSE": "35bdd8a44339719441900fb50fbefc5e2dca1ca662cbaed7a687de842c8b70f2"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "miniflare",
+      "version": "5.20260917.0-alpha",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/cloudflare/workers-sdk.git",
+        "directory": "packages/miniflare"
+      },
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/cloudflare/workers-sdk/main/LICENSE-MIT": "9bb3b077cc8628334bab25961223dd8207252c8a56aa054195be38f1c042aaf4"
+      },
+      "upstream_supplements": [
+        {
+          "file": "miniflare@5.20260917.0-alpha-LICENSE-MIT",
+          "url": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/LICENSE-MIT",
+          "sha256": "9bb3b077cc8628334bab25961223dd8207252c8a56aa054195be38f1c042aaf4",
+          "npm_version": "5.20260917.0-alpha",
+          "npm_git_head": null
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "minisearch",
+      "version": "7.2.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/lucaong/minisearch.git"
+      },
+      "license_documents": {
+        "LICENSE.txt": "70d37354d6395629fb99edb28cb37a5d356ffa24a48cd02a5def5b83a300a899"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mri",
+      "version": "1.2.0",
+      "license": "MIT",
+      "repository": "lukeed/mri",
+      "license_documents": {
+        "license.md": "306fa513e39b23a6e8747520de761809d206b99800ef41907b530226574c59ae"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "mrmime",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "lukeed/mrmime",
+      "license_documents": {
+        "license": "ba573393f24555ac0528612ad39665fab5bdcc80330a61096024bbf5f736526d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "ms",
+      "version": "2.1.3",
+      "license": "MIT",
+      "repository": "vercel/ms",
+      "license_documents": {
+        "license.md": "1662fae9b5314d11cf51284e2dcd1f006a354f7343f08712a730fcff9a359801"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "nanoid",
+      "version": "3.3.20",
+      "license": "MIT",
+      "repository": "ai/nanoid",
+      "license_documents": {
+        "LICENSE": "da4db1480d9beea3483a2eda5c53b22238d0827d57da162b48f122e04d2d9987"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "obug",
+      "version": "2.2.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/sxzz/obug.git"
+      },
+      "license_documents": {
+        "LICENSE": "ee48679d379ca6b4493d5e231094d85f818dd9be40b1a4f234fb7ff657ee35d9"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "oniguruma-parser",
+      "version": "0.12.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/slevithan/oniguruma-parser.git"
+      },
+      "license_documents": {
+        "LICENSE": "5fe78c91b36c6147ed0b6ab1631ce731165b7dd5e00482be1f027d46d12a8082"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "oniguruma-to-es",
+      "version": "4.3.6",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/slevithan/oniguruma-to-es.git"
+      },
+      "license_documents": {
+        "LICENSE": "c1a5a1ebc88f3e0f3caa04c0af52bf8f3a5405a467337a09594ae1ad149cec83"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "pako",
+      "version": "0.2.9",
+      "license": "MIT",
+      "repository": "nodeca/pako",
+      "license_documents": {
+        "LICENSE": "3bc404ffa7888053253eedcc5a667619aa08dc1be0bea400e5ff28c51602180f"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "parse-css-color",
+      "version": "0.2.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/noeldelgado/parse-css-color.git"
+      },
+      "license_documents": {
+        "LICENSE": "3c8c000c81035fa1f6dceeb5eced4b60cb91811e6e1e749ab01dc8b34dea34bd"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "parse5",
+      "version": "7.3.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/inikulin/parse5.git"
+      },
+      "license_documents": {
+        "LICENSE": "8c535800331e1e4439835555b3f9edc7fe9dee2fab0d8bbbd5a982e8b8343d4d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "path-key",
+      "version": "3.1.1",
+      "license": "MIT",
+      "repository": "sindresorhus/path-key",
+      "license_documents": {
+        "license": "48da2f39e100d4085767e94966b43f4fa95ff6a0698fba57ed460914e35f94a0"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "path-to-regexp",
+      "version": "6.3.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/pillarjs/path-to-regexp.git"
+      },
+      "license_documents": {
+        "LICENSE": "4eeb3271453a891df609e5a9f4ee79a68307f730c13417a3bfeffa604ac8cf25"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "pathe",
+      "version": "2.0.3",
+      "license": "MIT",
+      "repository": "unjs/pathe",
+      "license_documents": {
+        "LICENSE": "52e92576851154bad7737e90cc72818936f43665cb0e3f7428ed8edc8cc5709b"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "picocolors",
+      "version": "1.1.1",
+      "license": "ISC",
+      "repository": "alexeyraspopov/picocolors",
+      "license_documents": {
+        "LICENSE": "6582629e2979466878f6014313dcc2f3756c9616148682227ce3063dde310750"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "picomatch",
+      "version": "2.3.2",
+      "license": "MIT",
+      "repository": "micromatch/picomatch",
+      "license_documents": {
+        "LICENSE": "d0cd141b0c322fded5dfad1d4645bb2fedfc05b7321fe1009469638190d59ef9"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "picomatch",
+      "version": "4.0.7",
+      "license": "MIT",
+      "repository": "micromatch/picomatch",
+      "license_documents": {
+        "LICENSE": "d0cd141b0c322fded5dfad1d4645bb2fedfc05b7321fe1009469638190d59ef9"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "postcss",
+      "version": "8.5.29",
+      "license": "MIT",
+      "repository": "postcss/postcss",
+      "license_documents": {
+        "LICENSE": "5be1f3465bba68a626777f984878814aaf35e7ef8e9fd314d469bcf887050fb8"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "postcss-value-parser",
+      "version": "4.2.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/TrySound/postcss-value-parser.git"
+      },
+      "license_documents": {
+        "LICENSE": "3687447039151857a6ba378db062172c7f33d4aa70a615c87a43a9c50e990485"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "prism-svelte",
+      "version": "0.4.7",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/pngwn/prism-svelte.git"
+      },
+      "license_documents": {
+        "upstream README (license declaration)": "f8f357e82853c6ab32c9f7f7e9b0eaa68ae61da0831852642672fafc5f348dd3",
+        "upstream package.json (MIT declaration and attribution)": "4473ba7d839b5001684cb39cf4990648debd6f480ae7bfccc1035213945466ad"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": false
+    },
+    {
+      "name": "prismjs",
+      "version": "1.30.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/PrismJS/prism.git"
+      },
+      "license_documents": {
+        "LICENSE": "2b947f0901a7ffcf08a89957da9783c0e9c6e72cb6ce8e959f501ab5409e4d2b"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "property-information",
+      "version": "7.2.0",
+      "license": "MIT",
+      "repository": "wooorm/property-information",
+      "license_documents": {
+        "license": "5d0698266086f217bb11ea0499d33453e401fe479fb9126ad04e625e63d3557b"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "queue-microtask",
+      "version": "1.2.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/feross/queue-microtask.git"
+      },
+      "license_documents": {
+        "LICENSE": "d4c2065e2b936e62a4eb400efb4576edec9ca1388a9f78aa288e147275e7bc8b"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "readdirp",
+      "version": "4.1.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/paulmillr/readdirp.git"
+      },
+      "license_documents": {
+        "LICENSE": "dffec71d93f273d2af7b54c6c7e7e70b3289c632ec0d7253210ec21ac336d5ac"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "regex",
+      "version": "6.1.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/slevithan/regex.git"
+      },
+      "license_documents": {
+        "LICENSE": "3d19c2b6246b3072547af2bd05e6b4c09bd3d15955590f1f1e1d20382c919a49"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "regex-recursion",
+      "version": "6.0.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/slevithan/regex-recursion.git"
+      },
+      "license_documents": {
+        "LICENSE": "3d19c2b6246b3072547af2bd05e6b4c09bd3d15955590f1f1e1d20382c919a49"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "regex-utilities",
+      "version": "2.3.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/slevithan/regex-utilities.git"
+      },
+      "license_documents": {
+        "LICENSE": "8ca7af4f6c753e5ab8388e1078d94ce4650723bba4b0d4dfe562fbd45fb4a4e6"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "regexparam",
+      "version": "3.0.0",
+      "license": "MIT",
+      "repository": "lukeed/regexparam",
+      "license_documents": {
+        "license": "306fa513e39b23a6e8747520de761809d206b99800ef41907b530226574c59ae"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "rehype-katex",
+      "version": "7.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/remarkjs/remark-math/tree/main/packages/rehype-katex",
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/remarkjs/remark-math/88a9497e1ede93b958237c85edbf5651faeca7af/license": "cb992262f361a5359e6771c28740d33c7041e15332ae8537fae40538992591a9"
+      },
+      "upstream_supplements": [
+        {
+          "file": "rehype-katex@7.0.1-LICENSE",
+          "url": "https://raw.githubusercontent.com/remarkjs/remark-math/88a9497e1ede93b958237c85edbf5651faeca7af/license",
+          "sha256": "cb992262f361a5359e6771c28740d33c7041e15332ae8537fae40538992591a9"
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "rehype-raw",
+      "version": "7.0.0",
+      "license": "MIT",
+      "repository": "rehypejs/rehype-raw",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "rehype-slug",
+      "version": "6.0.0",
+      "license": "MIT",
+      "repository": "rehypejs/rehype-slug",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "rehype-stringify",
+      "version": "10.0.1",
+      "license": "MIT",
+      "repository": "https://github.com/rehypejs/rehype/tree/main/packages/rehype-stringify",
+      "license_documents": {
+        "license": "e18cf5173e928f808f0cd208097fee8fbec9d28fc0255213938e4c559e29ff58"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "remark-gfm",
+      "version": "4.0.1",
+      "license": "MIT",
+      "repository": "remarkjs/remark-gfm",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "remark-math",
+      "version": "6.0.0",
+      "license": "MIT",
+      "repository": "https://github.com/remarkjs/remark-math/tree/main/packages/remark-math",
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/remarkjs/remark-math/d5d0660b150810a535bbb07eac6cc96a4510aa24/license": "cb992262f361a5359e6771c28740d33c7041e15332ae8537fae40538992591a9"
+      },
+      "upstream_supplements": [
+        {
+          "file": "remark-math@6.0.0-LICENSE",
+          "url": "https://raw.githubusercontent.com/remarkjs/remark-math/d5d0660b150810a535bbb07eac6cc96a4510aa24/license",
+          "sha256": "cb992262f361a5359e6771c28740d33c7041e15332ae8537fae40538992591a9"
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "remark-parse",
+      "version": "11.0.0",
+      "license": "MIT",
+      "repository": "https://github.com/remarkjs/remark/tree/main/packages/remark-parse",
+      "license_documents": {
+        "license": "413654b0a78b98661dce96d2aff2e4d075603d220b8483e28b1aa010ccc138b4"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "remark-rehype",
+      "version": "11.1.2",
+      "license": "MIT",
+      "repository": "remarkjs/remark-rehype",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "remark-stringify",
+      "version": "11.0.0",
+      "license": "MIT",
+      "repository": "https://github.com/remarkjs/remark/tree/main/packages/remark-stringify",
+      "license_documents": {
+        "license": "413654b0a78b98661dce96d2aff2e4d075603d220b8483e28b1aa010ccc138b4"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "reusify",
+      "version": "1.1.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/mcollina/reusify.git"
+      },
+      "license_documents": {
+        "LICENSE": "93a1506953b08ad4874e1cc0971a1d2ac387ca510da91e4d05e460a6c4966fa3"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "rolldown",
+      "version": "1.2.13",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/rolldown/rolldown.git",
+        "directory": "packages/rolldown"
+      },
+      "license_documents": {
+        "LICENSE": "23ecfff35a5a2e80d92142f75228912c3b1abc4b5a8337a821ff4397e2f9f734"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "run-parallel",
+      "version": "1.2.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/feross/run-parallel.git"
+      },
+      "license_documents": {
+        "LICENSE": "d4c2065e2b936e62a4eb400efb4576edec9ca1388a9f78aa288e147275e7bc8b"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "sade",
+      "version": "1.8.1",
+      "license": "MIT",
+      "repository": "lukeed/sade",
+      "license_documents": {
+        "license": "ba573393f24555ac0528612ad39665fab5bdcc80330a61096024bbf5f736526d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "satori",
+      "version": "0.26.0",
+      "license": "MPL-2.0",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/vercel/satori.git"
+      },
+      "license_documents": {
+        "LICENSE": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "section-matter",
+      "version": "1.0.0",
+      "license": "MIT",
+      "repository": "jonschlinkert/section-matter",
+      "license_documents": {
+        "LICENSE": "6d99b653e1464192ef347e48fe78943bab7570e36d12a6de49b4474d46b4a39c"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "semver",
+      "version": "7.8.5",
+      "license": "ISC",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/npm/node-semver.git"
+      },
+      "license_documents": {
+        "LICENSE": "4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "set-cookie-parser",
+      "version": "3.1.3",
+      "license": "MIT",
+      "repository": "nfriedly/set-cookie-parser",
+      "license_documents": {
+        "LICENSE": "c5c6c5183a789d122f267c405f685037efb87e27fcde28ab1dd7378a2d2f5962"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "sharp",
+      "version": "0.34.5",
+      "license": "Apache-2.0",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/lovell/sharp.git"
+      },
+      "license_documents": {
+        "LICENSE": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "sharp",
+      "version": "0.35.4",
+      "license": "Apache-2.0",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/lovell/sharp.git"
+      },
+      "license_documents": {
+        "LICENSE": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "shebang-command",
+      "version": "2.0.0",
+      "license": "MIT",
+      "repository": "kevva/shebang-command",
+      "license_documents": {
+        "license": "69dee148a2cc470554dfa7142e830662062394d0fe67cddd379aba90dc60d6b3"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "shebang-regex",
+      "version": "3.0.0",
+      "license": "MIT",
+      "repository": "sindresorhus/shebang-regex",
+      "license_documents": {
+        "license": "48da2f39e100d4085767e94966b43f4fa95ff6a0698fba57ed460914e35f94a0"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "shiki",
+      "version": "4.0.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/shikijs/shiki.git",
+        "directory": "packages/shiki"
+      },
+      "license_documents": {
+        "LICENSE": "7a9d8d01038aeacf9e5bcdabbddf2a7815200dce9fc1118468cc553e00ae3eee"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "sirv",
+      "version": "3.0.2",
+      "license": "MIT",
+      "repository": "lukeed/sirv",
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/lukeed/sirv/1135207e92c40354543cbd15c763c7a61d79d432/license": "ba573393f24555ac0528612ad39665fab5bdcc80330a61096024bbf5f736526d"
+      },
+      "upstream_supplements": [
+        {
+          "file": "sirv@3.0.2-license",
+          "url": "https://raw.githubusercontent.com/lukeed/sirv/1135207e92c40354543cbd15c763c7a61d79d432/license",
+          "sha256": "ba573393f24555ac0528612ad39665fab5bdcc80330a61096024bbf5f736526d",
+          "npm_version": "3.0.2",
+          "npm_git_head": "1135207e92c40354543cbd15c763c7a61d79d432"
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "source-map-js",
+      "version": "1.2.2",
+      "license": "BSD-3-Clause",
+      "repository": "7rulnik/source-map-js",
+      "license_documents": {
+        "LICENSE": "6cb0631f71c7749763fd3dd1d5bee52dd1070ec17f2edc1710079ad070bd2fbd"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "space-separated-tokens",
+      "version": "2.0.2",
+      "license": "MIT",
+      "repository": "wooorm/space-separated-tokens",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "sprintf-js",
+      "version": "1.0.3",
+      "license": "BSD-3-Clause",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/alexei/sprintf.js.git"
+      },
+      "license_documents": {
+        "LICENSE": "a4cdda44b5adea4731d53dcae78fb5124f8fd853e994f01e25d8c33a7daf818b"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "string.prototype.codepointat",
+      "version": "0.2.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/mathiasbynens/String.prototype.codePointAt.git"
+      },
+      "license_documents": {
+        "LICENSE-MIT.txt": "483acb265f182907d1caf6cff9c16c96f31325ed23792832cc5d8b12d5f88c8a"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "stringify-entities",
+      "version": "4.0.4",
+      "license": "MIT",
+      "repository": "wooorm/stringify-entities",
+      "license_documents": {
+        "license": "9f084fac69d8cf1e6ce983ba5a3499c7695ed74a26ec625c38f0fd19fddd5e10"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "strip-bom-string",
+      "version": "1.0.0",
+      "license": "MIT",
+      "repository": "jonschlinkert/strip-bom-string",
+      "license_documents": {
+        "LICENSE": "aab63d733edfbb74393d94d75ece4ca89577d9f4a852a4cb18fb25cc8e254209"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "supports-color",
+      "version": "10.2.2",
+      "license": "MIT",
+      "repository": "chalk/supports-color",
+      "license_documents": {
+        "license": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "svedocs",
+      "version": "0.2.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/backrunner/svedocs.git",
+        "directory": "packages/svedocs"
+      },
+      "license_documents": {
+        "LICENSE": "16877089eed0ad962fc852ee29530566899565c94d0608c9ea6366bda2ef1ac7"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "svedocs-cli",
+      "version": "0.2.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/backrunner/svedocs.git",
+        "directory": "packages/cli"
+      },
+      "license_documents": {
+        "LICENSE": "16877089eed0ad962fc852ee29530566899565c94d0608c9ea6366bda2ef1ac7"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "svelte",
+      "version": "5.57.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/sveltejs/svelte.git",
+        "directory": "packages/svelte"
+      },
+      "license_documents": {
+        "LICENSE.md": "06257f4847b13a49a039efb17b944c141e71b12fd8d231b362d86919067d77a3"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "svelte-check",
+      "version": "4.7.6",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/sveltejs/language-tools.git"
+      },
+      "license_documents": {
+        "LICENSE": "ada595bb2ec8d71616dde1b956edb8fbad63eadab32b8d9ab9310a1aef08e5c5"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "tailwindcss",
+      "version": "4.3.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/tailwindlabs/tailwindcss.git",
+        "directory": "packages/tailwindcss"
+      },
+      "license_documents": {
+        "LICENSE": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "tapable",
+      "version": "2.3.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "http://github.com/webpack/tapable.git"
+      },
+      "license_documents": {
+        "LICENSE": "824ef6c33ae5ecbbab65d37f2b37da2bfc81d76cf7676ec0f59d00a0a38bdb75"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "tiny-inflate",
+      "version": "1.0.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/devongovett/tiny-inflate.git"
+      },
+      "license_documents": {
+        "LICENSE": "c0df7f551401f8f80197ff31bf69b8cd23727d127423403282514d242a3ab132"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "tinyglobby",
+      "version": "0.2.17",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/SuperchupuDev/tinyglobby.git"
+      },
+      "license_documents": {
+        "LICENSE": "22c68811e174cbbfb3813d4135918df4f540959c14d872e601d9abe83d3cde8f"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "to-regex-range",
+      "version": "5.0.1",
+      "license": "MIT",
+      "repository": "micromatch/to-regex-range",
+      "license_documents": {
+        "LICENSE": "e7d1fee7347ffddccc5fd03327ffdb50f8c112be0d5016d62388a92c4ae6e7a9"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "totalist",
+      "version": "3.0.1",
+      "license": "MIT",
+      "repository": "lukeed/totalist",
+      "license_documents": {
+        "license": "306fa513e39b23a6e8747520de761809d206b99800ef41907b530226574c59ae"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "trim-lines",
+      "version": "3.0.1",
+      "license": "MIT",
+      "repository": "wooorm/trim-lines",
+      "license_documents": {
+        "license": "9f084fac69d8cf1e6ce983ba5a3499c7695ed74a26ec625c38f0fd19fddd5e10"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "trough",
+      "version": "2.2.0",
+      "license": "MIT",
+      "repository": "wooorm/trough",
+      "license_documents": {
+        "license": "6c03fd41cfd7c92d8aa8a2fa521b94b2683f059123281dcf921ddea9216b6254"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "typescript",
+      "version": "6.0.3",
+      "license": "Apache-2.0",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/microsoft/TypeScript.git"
+      },
+      "license_documents": {
+        "LICENSE.txt": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "undici",
+      "version": "7.29.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/nodejs/undici.git"
+      },
+      "license_documents": {
+        "LICENSE": "a6db8096b2707bc0102d256917d4d33f298ba36d8c3f25de067a2b5bb379db27",
+        "lib/web/fetch/LICENSE": "a21d6c8d3fc631198b97e57584697f7f9c37805c71c6cf9a12e4442b40394b88"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "undici-types",
+      "version": "7.24.6",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/nodejs/undici.git"
+      },
+      "license_documents": {
+        "LICENSE": "a6db8096b2707bc0102d256917d4d33f298ba36d8c3f25de067a2b5bb379db27"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "unenv",
+      "version": "2.0.0-rc.24",
+      "license": "MIT",
+      "repository": "unjs/unenv",
+      "license_documents": {
+        "LICENSE": "46231df5a7733c3f52f11b71f3df61813007745b62b09031acfb45fb42d75082"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "unicode-trie",
+      "version": "2.0.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/devongovett/unicode-trie.git"
+      },
+      "license_documents": {
+        "LICENSE": "43439dbd4f43837aadab215cdbe5a422cc6323a50c4ea84d8d6bbc3671666a1d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "unified",
+      "version": "11.0.5",
+      "license": "MIT",
+      "repository": "unifiedjs/unified",
+      "license_documents": {
+        "license": "05811400116ed61f1a7693b78fe8ca6598c155a12f3978e609db4df648a4cb3d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "unist-util-find-after",
+      "version": "5.0.0",
+      "license": "MIT",
+      "repository": "syntax-tree/unist-util-find-after",
+      "license_documents": {
+        "license": "63cb98b3f6abfb3c3592c16f88253c1bdc834087bf52671e8ce5609e4eb693cf"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "unist-util-is",
+      "version": "4.1.0",
+      "license": "MIT",
+      "repository": "syntax-tree/unist-util-is",
+      "license_documents": {
+        "license": "82974dbf2639d13edab95c32ed9cb6c0867ede272cd2e07ce47ce8548fe55c05"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "unist-util-is",
+      "version": "6.0.1",
+      "license": "MIT",
+      "repository": "syntax-tree/unist-util-is",
+      "license_documents": {
+        "license": "82974dbf2639d13edab95c32ed9cb6c0867ede272cd2e07ce47ce8548fe55c05"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "unist-util-position",
+      "version": "5.0.0",
+      "license": "MIT",
+      "repository": "syntax-tree/unist-util-position",
+      "license_documents": {
+        "license": "63cb98b3f6abfb3c3592c16f88253c1bdc834087bf52671e8ce5609e4eb693cf"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "unist-util-remove-position",
+      "version": "5.0.0",
+      "license": "MIT",
+      "repository": "syntax-tree/unist-util-remove-position",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "unist-util-stringify-position",
+      "version": "2.0.3",
+      "license": "MIT",
+      "repository": "syntax-tree/unist-util-stringify-position",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "unist-util-stringify-position",
+      "version": "4.0.0",
+      "license": "MIT",
+      "repository": "syntax-tree/unist-util-stringify-position",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "unist-util-visit",
+      "version": "2.0.3",
+      "license": "MIT",
+      "repository": "syntax-tree/unist-util-visit",
+      "license_documents": {
+        "license": "63cb98b3f6abfb3c3592c16f88253c1bdc834087bf52671e8ce5609e4eb693cf"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "unist-util-visit",
+      "version": "5.1.0",
+      "license": "MIT",
+      "repository": "syntax-tree/unist-util-visit",
+      "license_documents": {
+        "license": "63cb98b3f6abfb3c3592c16f88253c1bdc834087bf52671e8ce5609e4eb693cf"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "unist-util-visit-parents",
+      "version": "3.1.1",
+      "license": "MIT",
+      "repository": "syntax-tree/unist-util-visit-parents",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "unist-util-visit-parents",
+      "version": "6.0.2",
+      "license": "MIT",
+      "repository": "syntax-tree/unist-util-visit-parents",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "vfile",
+      "version": "6.0.3",
+      "license": "MIT",
+      "repository": "vfile/vfile",
+      "license_documents": {
+        "license": "05811400116ed61f1a7693b78fe8ca6598c155a12f3978e609db4df648a4cb3d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "vfile-location",
+      "version": "5.0.3",
+      "license": "MIT",
+      "repository": "vfile/vfile-location",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "vfile-message",
+      "version": "2.0.4",
+      "license": "MIT",
+      "repository": "vfile/vfile-message",
+      "license_documents": {
+        "license": "d8fc337aaf98fc7a0f5498edc18b47a9df8cdfcc1a0f013519105905722c7a4c"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "vfile-message",
+      "version": "4.0.3",
+      "license": "MIT",
+      "repository": "vfile/vfile-message",
+      "license_documents": {
+        "license": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "vite",
+      "version": "8.3.4",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/vitejs/vite.git",
+        "directory": "packages/vite"
+      },
+      "license_documents": {
+        "LICENSE.md": "a47172e44a86a7e2cd1c16282341f7726ec60caafe3a6166fe3e0602005b6fa6"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "vitefu",
+      "version": "1.1.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/svitejs/vitefu.git"
+      },
+      "license_documents": {
+        "LICENSE": "ed0b4f44d335645e243ff856c66b5ca7b353ed58d10307e6d4dbfb35658a7814"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "web-namespaces",
+      "version": "2.0.1",
+      "license": "MIT",
+      "repository": "wooorm/web-namespaces",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "which",
+      "version": "2.0.2",
+      "license": "ISC",
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/isaacs/node-which.git"
+      },
+      "license_documents": {
+        "LICENSE": "4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "workerd",
+      "version": "1.20260917.1",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/cloudflare/workerd",
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/cloudflare/workerd/c12bb46e50932659afbf3d4393fb9d9904c0d0ba/LICENSE": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+      },
+      "upstream_supplements": [
+        {
+          "file": "workerd@1.20260917.1-LICENSE",
+          "url": "https://raw.githubusercontent.com/cloudflare/workerd/c12bb46e50932659afbf3d4393fb9d9904c0d0ba/LICENSE",
+          "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+          "npm_version": "1.20260917.1",
+          "npm_git_head": "c12bb46e50932659afbf3d4393fb9d9904c0d0ba"
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "worktop",
+      "version": "0.8.0-next.18",
+      "license": "MIT",
+      "repository": "lukeed/worktop",
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/lukeed/worktop/2fcc9409f2a8014a445bd5de602670f8951ffa15/license": "9a9edad7baae52622bddf3c15b2ef8a33d2c89f2d25408ad13e8a7481c6b0c97"
+      },
+      "upstream_supplements": [
+        {
+          "file": "worktop@0.8.0-next.18-license",
+          "url": "https://raw.githubusercontent.com/lukeed/worktop/2fcc9409f2a8014a445bd5de602670f8951ffa15/license",
+          "sha256": "9a9edad7baae52622bddf3c15b2ef8a33d2c89f2d25408ad13e8a7481c6b0c97",
+          "npm_version": "0.8.0-next.18",
+          "npm_git_head": "2fcc9409f2a8014a445bd5de602670f8951ffa15"
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "wrangler",
+      "version": "4.134.0",
+      "license": "MIT OR Apache-2.0",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/cloudflare/workers-sdk.git",
+        "directory": "packages/wrangler"
+      },
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/cloudflare/workers-sdk/main/LICENSE-APACHE": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+        "upstream: https://raw.githubusercontent.com/cloudflare/workers-sdk/main/LICENSE-MIT": "9bb3b077cc8628334bab25961223dd8207252c8a56aa054195be38f1c042aaf4"
+      },
+      "upstream_supplements": [
+        {
+          "file": "wrangler@4.134.0-LICENSE-MIT",
+          "url": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/LICENSE-MIT",
+          "sha256": "9bb3b077cc8628334bab25961223dd8207252c8a56aa054195be38f1c042aaf4",
+          "npm_version": "4.134.0",
+          "npm_git_head": null
+        },
+        {
+          "file": "wrangler@4.134.0-LICENSE-APACHE",
+          "url": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/LICENSE-APACHE",
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+          "npm_version": "4.134.0",
+          "npm_git_head": null
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "ws",
+      "version": "8.21.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/websockets/ws.git"
+      },
+      "license_documents": {
+        "LICENSE": "2b29dcfe0d6471f7e8c92c5fb38c9f93edee10330937055440192f1832b1ecef"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "yoga-layout",
+      "version": "3.2.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git@github.com:facebook/yoga.git"
+      },
+      "license_documents": {
+        "upstream: https://raw.githubusercontent.com/facebook/yoga/v3.2.1/LICENSE": "52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85"
+      },
+      "upstream_supplements": [
+        {
+          "file": "yoga-layout@3.2.1-LICENSE",
+          "url": "https://raw.githubusercontent.com/facebook/yoga/v3.2.1/LICENSE",
+          "sha256": "52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85",
+          "npm_version": "3.2.1",
+          "npm_git_head": null
+        }
+      ],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "youch",
+      "version": "4.1.0-beta.10",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/poppinss/youch.git"
+      },
+      "license_documents": {
+        "LICENSE.md": "bba2399e2c617b0577fc3f4e22299367625824959945318b17b39ac3c910ce5f"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "youch-core",
+      "version": "0.3.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/poppinss/youch-core.git"
+      },
+      "license_documents": {
+        "LICENSE.md": "26e09f87efc06dfbe7a0ea183dd0fcc1bd2811c889d183d23df92af15625dfa1"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "zimmerframe",
+      "version": "1.1.5",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/sveltejs/zimmerframe"
+      },
+      "license_documents": {
+        "LICENSE": "5fde0201805ca0ffc8884fac6a3447b7f2918a6c22efb68b94019298d16bad9e"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "zod",
+      "version": "4.4.3",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/colinhacks/zod.git"
+      },
+      "license_documents": {
+        "LICENSE": "3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    },
+    {
+      "name": "zwitch",
+      "version": "2.0.4",
+      "license": "MIT",
+      "repository": "wooorm/zwitch",
+      "license_documents": {
+        "license": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+      },
+      "upstream_supplements": [],
+      "separate_license_file_provided": true
+    }
+  ]
+}

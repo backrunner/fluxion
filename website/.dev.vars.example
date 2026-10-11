@@ -1,0 +1,5 @@
+# Server-only product key for Fluxion. Never an account key or another product key.
+ONFIRE_API_KEY=
+SUPPORT_ENABLED=false
+ONFIRE_PRODUCT_ID=
+ONFIRE_TICKET_TYPES={}

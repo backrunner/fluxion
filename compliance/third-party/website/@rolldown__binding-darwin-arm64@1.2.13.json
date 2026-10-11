@@ -1,0 +1,15 @@
+[
+  {
+    "file": "@rolldown__binding-darwin-arm64@1.2.13-LICENSE",
+    "url": "https://raw.githubusercontent.com/rolldown/rolldown/v1.2.13/LICENSE",
+    "sha256": "23ecfff35a5a2e80d92142f75228912c3b1abc4b5a8337a821ff4397e2f9f734",
+    "npm_version": "1.2.13",
+    "npm_git_head": null
+  },
+  {
+    "file": "@rolldown__binding-darwin-arm64@1.2.13-THIRD-PARTY-LICENSE",
+    "url": "https://raw.githubusercontent.com/rolldown/rolldown/v1.2.13/THIRD-PARTY-LICENSE",
+    "sha256": "a877291d800ed43692f3f9ae09d8e01cc6f7293ad39d43896059c188ffbb8b7c",
+    "npm_version": "1.2.13"
+  }
+]

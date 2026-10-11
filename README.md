@@ -138,6 +138,22 @@ Please review [SECURITY.md](SECURITY.md) before reporting a vulnerability. Do no
 
 The release workflow builds a signed universal macOS app and DMG, generates signed native updater archives, and publishes immutable versioned files before advancing a channel manifest. Maintainer setup and tag conventions are documented in [docs/releasing.md](docs/releasing.md).
 
+The separate Mac App Store build enables App Sandbox, persists user-selected file
+access, and excludes direct updates and browser-host registration. Build locally
+with `python3 scripts/bundle-macos.py --distribution app-store`, then verify with
+`python3 scripts/check-app-store.py target/native/debug/app-store/Fluxion.app`.
+This ad-hoc validation build is not a submission artifact. See
+[store readiness and remaining gates](docs/app-store/readiness.md).
+
+BitTorrent IP/client/Peer ID rules now apply to actual inbound/outbound peer
+connections and magnet metadata through a narrowly documented librqbit source
+patch. Client identity remains self-reported. Rapid-disconnect blocking and FTPS
+are intentionally unsupported; restrictive rules are never silently discarded.
+
+The [official website](https://fluxion.alkinum.com) is a customized bilingual
+svedocs site. See [website setup and deployment](website/README.md). The OnFire
+support adapter is reserved and disabled until the user requests its setup.
+
 ## Contributing
 
 Focused issues and pull requests are welcome. Keep changes scoped to the relevant crate or App boundary, add tests proportional to the behavior changed, and run the verification commands above before submitting.

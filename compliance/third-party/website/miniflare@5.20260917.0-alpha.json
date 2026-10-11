@@ -1,0 +1,9 @@
+[
+  {
+    "file": "miniflare@5.20260917.0-alpha-LICENSE-MIT",
+    "url": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/LICENSE-MIT",
+    "sha256": "9bb3b077cc8628334bab25961223dd8207252c8a56aa054195be38f1c042aaf4",
+    "npm_version": "5.20260917.0-alpha",
+    "npm_git_head": null
+  }
+]

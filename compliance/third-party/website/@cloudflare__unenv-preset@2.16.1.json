@@ -1,0 +1,16 @@
+[
+  {
+    "file": "@cloudflare__unenv-preset@2.16.1-LICENSE-MIT",
+    "url": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/unenv-preset/LICENSE-MIT",
+    "sha256": "6967403e44e729441704474cffc39c1e6f30602ee086d2669f8d68a9a0c89828",
+    "npm_version": "2.16.1",
+    "npm_git_head": null
+  },
+  {
+    "file": "@cloudflare__unenv-preset@2.16.1-LICENSE-APACHE",
+    "url": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/unenv-preset/LICENSE-APACHE",
+    "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+    "npm_version": "2.16.1",
+    "npm_git_head": null
+  }
+]

@@ -1,0 +1,16 @@
+node_modules/
+.svelte-kit/
+.svedocs/
+build/
+.wrangler/
+static/og/
+static/_svedocs/
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+test-results/
+playwright-report/
+evidence/
