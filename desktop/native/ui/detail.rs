@@ -370,7 +370,10 @@ impl Workspace {
                                         .flex_shrink_0()
                                         .text_color(cx.theme().muted_foreground)
                                         .child(icon_view("folder-open").size(px(16.)))
-                                        .tooltip(self.tr("native.openFolder"))
+                                        .hover_tooltip(
+                                            "folder-tooltip",
+                                            self.tr("native.openFolder"),
+                                        )
                                         .disabled(self.busy)
                                         .on_click(cx.listener(move |this, _, window, cx| {
                                             this.act(vec![id], TaskAction::OpenFolder, window, cx)
@@ -416,7 +419,7 @@ impl Workspace {
                                         .flex_shrink_0()
                                         .text_color(cx.theme().muted_foreground)
                                         .child(icon_view("copy").size(px(16.)))
-                                        .tooltip(self.tr("native.copySource"))
+                                        .hover_tooltip("copy-tooltip", self.tr("native.copySource"))
                                         .on_click({
                                             move |_, _, cx| {
                                                 cx.write_to_clipboard(ClipboardItem::new_string(
@@ -509,20 +512,20 @@ impl Workspace {
             window,
             cx,
         ));
-        if let TaskKind::Http(config) = &task.kind {
-            if !config.headers.is_empty() || !detail.credentials.headers.is_empty() {
-                let mut headers = v_flex()
-                    .gap(px(DETAIL_FIELD_GAP))
-                    .child(section(self.tr("credentials.requestHeaders"), cx));
-                for header in config
-                    .headers
-                    .iter()
-                    .chain(detail.credentials.headers.iter())
-                {
-                    headers = headers.child(info(header.name.clone(), header.value.clone(), cx));
-                }
-                body = body.child(headers);
+        if let TaskKind::Http(config) = &task.kind
+            && (!config.headers.is_empty() || !detail.credentials.headers.is_empty())
+        {
+            let mut headers = v_flex()
+                .gap(px(DETAIL_FIELD_GAP))
+                .child(section(self.tr("credentials.requestHeaders"), cx));
+            for header in config
+                .headers
+                .iter()
+                .chain(detail.credentials.headers.iter())
+            {
+                headers = headers.child(info(header.name.clone(), header.value.clone(), cx));
             }
+            body = body.child(headers);
         }
         if let Some(username) = &detail.credentials.username {
             body = body.child(info(self.tr("credentials.username"), username.clone(), cx));
@@ -540,7 +543,7 @@ impl Workspace {
                 // Each cell aggregates an even range, so very large torrents remain cheap to render.
                 let group = bt.total_pieces.max(1).div_ceil(240);
                 for start in (0..bt.total_pieces).step_by(group as usize) {
-                    let end = (start + group).min(bt.total_pieces);
+                    let end = start.saturating_add(group).min(bt.total_pieces);
                     let complete = (start..end).all(|i| {
                         bt.piece_haves
                             .get((i / 8) as usize)
@@ -552,29 +555,45 @@ impl Workspace {
                         cx.theme().border
                     }));
                 }
-                let mut files = v_flex().gap_3();
-                for file in &bt.files {
-                    files = files.child(
-                        v_flex()
-                            .gap_1()
-                            .child(div().text_sm().child(file.name.clone()))
-                            .child(progress_bar(
-                                percent(file.downloaded, Some(file.size)),
-                                color,
-                                cx,
-                            ))
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(cx.theme().muted_foreground)
-                                    .child(format!(
-                                        "{} / {}",
-                                        bytes(Some(file.downloaded)),
-                                        bytes(Some(file.size))
-                                    )),
-                            ),
-                    );
-                }
+                let view = cx.entity();
+                let file_count = bt.files.len();
+                let files = uniform_list(
+                    SharedString::from(format!("bt-files-{id}")),
+                    file_count,
+                    move |range, _, cx| {
+                        let workspace = view.read(cx);
+                        let Some(snapshot) = &workspace.bt else {
+                            return Vec::new();
+                        };
+                        range
+                            .filter_map(|index| snapshot.files.get(index))
+                            .map(|file| {
+                                v_flex()
+                                    .h(px(64.))
+                                    .gap_1()
+                                    .child(div().text_sm().truncate().child(file.name.clone()))
+                                    .child(progress_bar(
+                                        percent(file.downloaded, Some(file.size)),
+                                        color,
+                                        cx,
+                                    ))
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child(format!(
+                                                "{} / {}",
+                                                bytes(Some(file.downloaded)),
+                                                bytes(Some(file.size))
+                                            )),
+                                    )
+                            })
+                            .collect::<Vec<_>>()
+                    },
+                )
+                .w_full()
+                .h(px(64. * file_count.min(6) as f32))
+                .flex_shrink_0();
                 body = body
                     .child(section(
                         format!("{} · {have}/{}", self.tr("bt.pieces"), bt.total_pieces),

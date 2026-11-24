@@ -1,7 +1,7 @@
 use super::*;
+use crate::tooltip::HoverTooltip;
 use crate::ui_style::{control, scroll_mask, segment, segments};
 use gpui_component::menu::{DropdownMenu, PopupMenuItem};
-use gpui_component::tooltip::Tooltip;
 
 const LIST_CONTENT_INSET: f32 = 24.;
 const LIST_HEADER_HEIGHT: f32 = 60.;
@@ -23,8 +23,8 @@ fn ellipsize_task_name(name: &str, width: Pixels, cx: &App) -> SharedString {
         )
 }
 
-fn batch_targets(
-    tasks: &[TaskSummary],
+pub(super) fn batch_targets(
+    tasks: &[Rc<TaskSummary>],
     selection_mode: bool,
     checked: &BTreeSet<TaskId>,
 ) -> Vec<TaskId> {
@@ -36,7 +36,12 @@ fn batch_targets(
 }
 
 impl Workspace {
-    pub(super) fn icon_button(&self, id: &'static str, icon: &str, label: &str) -> Button {
+    pub(super) fn icon_button(
+        &self,
+        id: &'static str,
+        icon: &str,
+        label: &str,
+    ) -> HoverTooltip<Button> {
         // Button::icon scales icons down with the button size. An explicit child
         // keeps a 20 px glyph inside a consistent 36 px interaction target.
         Button::new(id)
@@ -44,7 +49,7 @@ impl Workspace {
             .size(px(36.))
             .p_0()
             .child(icon_view(icon))
-            .tooltip(self.tr(label))
+            .hover_tooltip(id, self.tr(label))
     }
     pub(super) fn action_button(&self, id: &'static str, icon: &str, label: &str) -> Button {
         control(id).h(px(32.)).child(
@@ -369,9 +374,7 @@ impl Workspace {
                             .whitespace_nowrap()
                             .overflow_hidden()
                             .child(visible_name)
-                            .tooltip(move |window, cx| {
-                                Tooltip::new(name.clone()).build(window, cx)
-                            }),
+                            .hover_tooltip("name-tooltip", name),
                     ),
             )
             .child(
@@ -502,7 +505,7 @@ impl Workspace {
                                     .p_0()
                                     .when(selected, |button| button.bg(cx.theme().background))
                                     .child(icon_view(icon))
-                                    .tooltip(self.tr(hint))
+                                    .hover_tooltip("task-action-tooltip", self.tr(hint))
                                     .disabled(
                                         self.busy
                                             || self.filter == Filter::Trash
@@ -537,7 +540,13 @@ impl Workspace {
         let empty_bottom_inset = controls_height.min(
             (window.viewport_size().height - px(24.) - controls_height - px(160.)).max(px(0.)),
         );
-        let ids = batch_targets(&tasks, self.selection_mode, &self.checked);
+        let ids = Rc::new(batch_targets(&tasks, self.selection_mode, &self.checked));
+        let mut eligible = tasks
+            .iter()
+            .filter(|t| !self.selection_mode || self.checked.contains(&t.id));
+        let start_enabled = eligible.clone().any(|t| can_start(&t.state));
+        let pause_enabled = eligible.clone().any(|t| active(&t.state));
+        let stop_enabled = eligible.any(|t| can_stop(&t.state));
         let pause = ids.clone();
         let start = ids.clone();
         let delete = ids.clone();
@@ -582,7 +591,10 @@ impl Workspace {
                     .child(
                         self.action_button("new-download", "plus", "native.newTask")
                             .primary()
-                            .tooltip(format!("{} · ⌘N", self.tr("list.newDownload")))
+                            .hover_tooltip(
+                                "new-download-tooltip",
+                                format!("{} · ⌘N", self.tr("list.newDownload")),
+                            )
                             .disabled(self.loading)
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.open_form(FormKind::Create, window, cx)
@@ -638,7 +650,6 @@ impl Workspace {
                                     .px_2()
                                     .mx(px(2.))
                                     .flex_shrink_0()
-                                    .tooltip(self.tr("list.sortTasks"))
                                     .child(
                                         h_flex()
                                             .gap_1p5()
@@ -669,7 +680,8 @@ impl Workspace {
                                             }
                                             menu
                                         },
-                                    ),
+                                    )
+                                    .hover_tooltip("sort-tooltip", self.tr("list.sortTasks")),
                             ),
                     ),
             );
@@ -771,16 +783,11 @@ impl Workspace {
                                             "native.startSelected",
                                         )
                                         .size(px(32.))
-                                        .disabled(
-                                            self.busy
-                                                || !tasks.iter().any(|t| {
-                                                    ids.contains(&t.id) && can_start(&t.state)
-                                                }),
-                                        )
+                                        .disabled(self.busy || !start_enabled)
                                         .on_click(
                                             cx.listener(move |this, _, window, cx| {
                                                 this.act(
-                                                    start.clone(),
+                                                    start.to_vec(),
                                                     TaskAction::Start,
                                                     window,
                                                     cx,
@@ -795,16 +802,11 @@ impl Workspace {
                                             "list.pauseSelected",
                                         )
                                         .size(px(32.))
-                                        .disabled(
-                                            self.busy
-                                                || !tasks.iter().any(|t| {
-                                                    ids.contains(&t.id) && active(&t.state)
-                                                }),
-                                        )
+                                        .disabled(self.busy || !pause_enabled)
                                         .on_click(
                                             cx.listener(move |this, _, window, cx| {
                                                 this.act(
-                                                    pause.clone(),
+                                                    pause.to_vec(),
                                                     TaskAction::Pause,
                                                     window,
                                                     cx,
@@ -819,15 +821,15 @@ impl Workspace {
                                             "list.action.stop",
                                         )
                                         .size(px(32.))
-                                        .disabled(
-                                            self.busy
-                                                || !tasks.iter().any(|t| {
-                                                    ids.contains(&t.id) && can_stop(&t.state)
-                                                }),
-                                        )
+                                        .disabled(self.busy || !stop_enabled)
                                         .on_click(
                                             cx.listener(move |this, _, window, cx| {
-                                                this.act(stop.clone(), TaskAction::Stop, window, cx)
+                                                this.act(
+                                                    stop.to_vec(),
+                                                    TaskAction::Stop,
+                                                    window,
+                                                    cx,
+                                                )
                                             }),
                                         ),
                                     )
@@ -851,7 +853,7 @@ impl Workspace {
                                 .on_click(cx.listener(
                                     move |this, _, window, cx| {
                                         this.act(
-                                            delete.clone(),
+                                            delete.to_vec(),
                                             if trash {
                                                 TaskAction::Delete(false)
                                             } else {
@@ -886,6 +888,8 @@ impl Workspace {
                     }),
                     self.tr(if trash {
                         "list.empty.trash.copy"
+                    } else if !self.store.tasks.is_empty() {
+                        "list.empty.matches.copy"
                     } else {
                         "list.empty.downloads.copy"
                     }),
@@ -947,8 +951,8 @@ mod tests {
     #[test]
     fn clearing_last_selection_never_targets_all_tasks() {
         let tasks = vec![
-            crate::tests::task(TaskState::Queued),
-            crate::tests::task(TaskState::Paused),
+            std::rc::Rc::new(crate::tests::task(TaskState::Queued)),
+            std::rc::Rc::new(crate::tests::task(TaskState::Paused)),
         ];
         let mut checked = BTreeSet::new();
         assert_eq!(batch_targets(&tasks, false, &checked).len(), 2);

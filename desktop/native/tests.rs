@@ -22,10 +22,10 @@ fn batch_actions_continue_after_a_missing_task() {
         while !matches!(next(&backend).await, Message::Snapshot(..)) {}
         backend
             .commands
-            .send(Command::Create(input(
+            .send(Command::Create(Box::new(input(
                 "https://example.test/file",
                 files.path().to_str().unwrap(),
-            )))
+            ))))
             .await
             .unwrap();
         let id = loop {
@@ -43,7 +43,7 @@ fn batch_actions_continue_after_a_missing_task() {
         loop {
             match next(&backend).await {
                 Message::Acted(task_id, Action::Stop) => {
-                    assert_eq!(id, task_id);
+                    assert_eq!(vec![id], task_id);
                     succeeded = true;
                 }
                 Message::Error(error) => {
@@ -219,7 +219,7 @@ fn trash_never_leaks_into_normal_filters_and_progress_is_bounded() {
 #[cfg(not(feature = "app-store"))]
 #[test]
 fn signed_updater_rejects_bad_signatures_and_archive_links() {
-    assert!(crate::updater::verify(b"payload", "invalid").is_err());
+    assert!(crate::updater::verify(&b"payload"[..], "invalid").is_err());
     let mut compressed = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
     {
         let mut tar = tar::Builder::new(&mut compressed);
@@ -277,7 +277,9 @@ fn native_backend_downloads_and_persists_real_http_file() {
                 panic!("backend failed: {error}");
             }
             match &message {
-                Message::Snapshot(tasks, _) => store.tasks = tasks.clone(),
+                Message::Snapshot(tasks, _) => {
+                    store.tasks = tasks.iter().cloned().map(std::rc::Rc::new).collect()
+                }
                 Message::Event(event) => {
                     if matches!(event, CoreEvent::TaskProgress(p) if p.downloaded_bytes > 0) {
                         *progress_seen = true;
@@ -296,10 +298,10 @@ fn native_backend_downloads_and_persists_real_http_file() {
         ) {}
         backend
             .commands
-            .send(Command::Create(input(
+            .send(Command::Create(Box::new(input(
                 &format!("http://127.0.0.1:{port}/fixture.bin"),
                 files.path().to_str().unwrap(),
-            )))
+            ))))
             .await
             .unwrap();
         let id = loop {

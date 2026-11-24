@@ -1,3 +1,4 @@
+use crate::tooltip::HoverTooltipExt;
 use crate::ui_style::{
     CollapseState, collapse_card, control, preference_row, scroll_mask, separator, settings_group,
 };
@@ -37,7 +38,7 @@ const INPUT_FIELDS: &[(&str, &str, &str, bool, bool)] = &[
 ];
 
 pub enum FormEvent {
-    Submit(Command),
+    Submit(Box<Command>),
     Cancel,
 }
 pub enum FormKind {
@@ -54,7 +55,7 @@ pub struct Form {
     pub busy: bool,
     advanced: CollapseState,
     scroll: ScrollHandle,
-    preview_scroll: ScrollHandle,
+    preview_scroll: UniformListScrollHandle,
     proxy: bool,
     seeding: bool,
     pub preview: Option<MagnetPreview>,
@@ -96,7 +97,7 @@ impl Form {
             busy: false,
             advanced: CollapseState::default(),
             scroll: ScrollHandle::new(),
-            preview_scroll: ScrollHandle::new(),
+            preview_scroll: UniformListScrollHandle::new(),
             proxy: true,
             seeding: true,
             preview: None,
@@ -160,7 +161,7 @@ impl Form {
                         this.error = t(&this.locale, "native.browserCredentialsCleared");
                     }
                     this.preview = None;
-                    this.preview_generation += 1;
+                    this.preview_generation = 0;
                     this.resolving = false;
                     cx.notify();
                 }
@@ -298,7 +299,7 @@ impl Form {
             Ok(command) => {
                 self.error.clear();
                 self.busy = true;
-                cx.emit(FormEvent::Submit(command));
+                cx.emit(FormEvent::Submit(Box::new(command)));
             }
             Err(error) => self.error = validation_message(&self.locale, &error.to_string()),
         }
@@ -374,7 +375,7 @@ impl Form {
                 config.redirect_limit = 0;
             }
         }
-        Ok(Command::Create(input))
+        Ok(Command::Create(Box::new(input)))
     }
 }
 
@@ -656,7 +657,10 @@ impl Render for Form {
                             control("torrent")
                                 .icon(IconName::FolderOpen)
                                 .label(".torrent")
-                                .tooltip(t(&self.locale, "new.chooseTorrent"))
+                                .hover_tooltip(
+                                    "torrent-tooltip",
+                                    t(&self.locale, "new.chooseTorrent"),
+                                )
                                 .disabled(self.busy)
                                 .on_click(cx.listener(|this, _, window, cx| {
                                     this.pick("source", window, cx)
@@ -692,42 +696,63 @@ impl Render for Form {
                         .disabled(self.resolving || self.busy)
                         .on_click(cx.listener(|this, _, _, cx| {
                             this.resolving = true;
-                            this.preview_generation += 1;
-                            cx.emit(FormEvent::Submit(Command::Preview(
+                            static NEXT_PREVIEW: std::sync::atomic::AtomicU64 =
+                                std::sync::atomic::AtomicU64::new(1);
+                            this.preview_generation =
+                                NEXT_PREVIEW.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            cx.emit(FormEvent::Submit(Box::new(Command::Preview(
                                 this.preview_generation,
                                 this.value("source", cx),
-                            )));
+                            ))));
                             cx.notify();
                         })),
                 );
             }
             if let Some(preview) = &self.preview {
-                let mut files = v_flex()
-                    .id("preview-files")
-                    .max_h(px(150.))
-                    .overflow_y_scroll()
-                    .track_scroll(&self.preview_scroll)
-                    .gap_2();
-                for file in &preview.files {
-                    let index = file.index;
-                    files = files.child(
-                        Checkbox::new(("file", index as usize))
-                            .label(format!("{} · {}", file.name, bytes(Some(file.size))))
-                            .checked(file.selected)
-                            .disabled(self.busy)
-                            .on_click(cx.listener(move |this, checked, _, cx| {
-                                if let Some(p) = &mut this.preview
-                                    && let Some(f) = p.files.iter_mut().find(|f| f.index == index)
-                                {
-                                    f.selected = *checked;
-                                }
-                                cx.notify();
-                            })),
-                    );
-                }
+                let view = cx.entity();
+                let file_count = preview.files.len();
+                let files = uniform_list("preview-files", file_count, move |range, _, cx| {
+                    view.update(cx, |this, cx| {
+                        let Some(preview) = &this.preview else {
+                            return Vec::new();
+                        };
+                        range
+                            .filter_map(|row| {
+                                let file = preview.files.get(row)?;
+                                let index = file.index;
+                                Some(
+                                    div().h(px(28.)).child(
+                                        Checkbox::new(("file", index as usize))
+                                            .label(format!(
+                                                "{} · {}",
+                                                file.name,
+                                                bytes(Some(file.size))
+                                            ))
+                                            .checked(file.selected)
+                                            .disabled(this.busy)
+                                            .on_click(cx.listener(move |this, checked, _, cx| {
+                                                if let Some(file) = this
+                                                    .preview
+                                                    .as_mut()
+                                                    .and_then(|p| p.files.get_mut(row))
+                                                    && file.index == index
+                                                {
+                                                    file.selected = *checked;
+                                                    cx.notify();
+                                                }
+                                            })),
+                                    ),
+                                )
+                            })
+                            .collect()
+                    })
+                })
+                .w_full()
+                .h(px((file_count.min(6) as f32 * 28.).min(150.)))
+                .track_scroll(self.preview_scroll.clone());
                 body = body.child(scroll_mask(
                     files,
-                    &self.preview_scroll,
+                    &self.preview_scroll.0.borrow().base_handle,
                     cx.theme().background,
                 ));
             }
@@ -802,13 +827,13 @@ impl Render for Form {
                 t(&self.locale, "settings.proxy.useSystem"),
                 Switch::new("proxy")
                     .small()
-                    .tooltip(t(&self.locale, "settings.proxy.useSystem"))
                     .checked(self.proxy)
                     .disabled(self.busy)
                     .on_click(cx.listener(|this, value, _, cx| {
                         this.proxy = *value;
                         cx.notify();
-                    })),
+                    }))
+                    .hover_tooltip("proxy-tooltip", t(&self.locale, "settings.proxy.useSystem")),
             ));
         }
         options = if settings {
@@ -970,5 +995,67 @@ impl Render for Form {
                         ),
                 )
             })
+    }
+}
+
+#[cfg(test)]
+mod preview_tests {
+    use super::{Command, Form, FormKind, MagnetPreview, MagnetPreviewFile, TaskKind};
+    use gpui::{
+        AppContext, Modifiers, ScrollStrategy, TestAppContext, VisualTestContext, point, px,
+    };
+    use gpui_component::Root;
+
+    #[gpui::test]
+    fn large_magnet_preview_scrolls_and_selects_the_correct_file(cx: &mut TestAppContext) {
+        cx.update(gpui_component::init);
+        let mut entity = None;
+        let window = cx.add_window(|window, cx| {
+            let form = cx.new(|cx| Form::new(FormKind::Create, "en".into(), window, cx));
+            form.update(cx, |form, cx| {
+                form.set("source", "magnet:?xt=urn:btih:fixture", window, cx)
+            });
+            entity = Some(form.clone());
+            Root::new(form, window, cx)
+        });
+        cx.run_until_parked();
+        let form = entity.unwrap();
+        form.update(cx, |form, cx| {
+            form.preview = Some(MagnetPreview {
+                name: None,
+                info_hash: String::new(),
+                total_bytes: 10000,
+                trackers: vec![],
+                files: (0..10000)
+                    .map(|index| MagnetPreviewFile {
+                        index,
+                        name: format!("file-{index}"),
+                        size: 1,
+                        selected: false,
+                    })
+                    .collect(),
+            });
+            cx.notify();
+        });
+        cx.run_until_parked();
+        let handle = form.read_with(cx, |form, _| form.preview_scroll.clone());
+        handle.scroll_to_item(7500, ScrollStrategy::Top);
+        form.update(cx, |_, cx| cx.notify());
+        cx.run_until_parked();
+        let offset = handle.0.borrow().base_handle.offset().y;
+        assert_eq!(offset, px(-7500. * 28.));
+        let bounds = handle.0.borrow().base_handle.bounds();
+        let mut visual = VisualTestContext::from_window(*window, cx);
+        visual.simulate_click(bounds.origin + point(px(8.), px(8.)), Modifiers::none());
+        cx.run_until_parked();
+        form.read_with(cx, |form, cx| {
+            let Command::Create(input) = form.command(cx).unwrap() else {
+                panic!("expected create")
+            };
+            let TaskKind::Bt(bt) = input.kind else {
+                panic!("expected BT")
+            };
+            assert_eq!(bt.selected_files, [7500]);
+        });
     }
 }

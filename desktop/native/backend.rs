@@ -26,7 +26,7 @@ pub enum Command {
     InstallUpdate(crate::updater::PreparedUpdate),
     Detail(TaskId),
     Bt(TaskId),
-    Create(CreateTaskInput),
+    Create(Box<CreateTaskInput>),
     Act(Vec<TaskId>, Action),
     Settings(SettingsSnapshot),
     Limits(TaskId, TaskRateLimit),
@@ -38,11 +38,11 @@ pub enum Command {
 pub enum Message {
     Snapshot(Vec<TaskSummary>, SettingsSnapshot),
     Event(CoreEvent),
-    Detail(TaskId, Option<TaskDetail>),
+    Detail(TaskId, Option<Box<TaskDetail>>),
     Bt(TaskId, Option<BtStateSnapshot>),
     Created(TaskId),
     BrowserDownload(fluxion_browser::IncomingDownload),
-    Acted(TaskId, Action),
+    Acted(Vec<TaskId>, Action),
     Saved,
     Preview(u64, std::result::Result<MagnetPreview, String>),
     Error(String),
@@ -317,7 +317,7 @@ async fn execute(
         Command::Detail(id) => {
             tx.send(Message::Detail(
                 id,
-                core.get_task(id).await?.map(|v| v.redacted()),
+                core.get_task(id).await?.map(|v| Box::new(v.redacted())),
             ))
             .await?;
         }
@@ -326,18 +326,22 @@ async fn execute(
                 .await?;
         }
         Command::Create(input) => {
-            tx.send(Message::Created(core.create_task(input).await?))
+            tx.send(Message::Created(core.create_task(*input).await?))
                 .await?;
         }
         Command::Act(ids, action) => {
             let batch = ids.len() > 1;
             let mut failed = 0;
+            let mut succeeded = Vec::new();
             for id in ids {
                 match act_one(core, id, action).await {
-                    Ok(()) => tx.send(Message::Acted(id, action)).await?,
+                    Ok(()) => succeeded.push(id),
                     Err(error) if !batch => return Err(error),
                     Err(_) => failed += 1,
                 }
+            }
+            if !succeeded.is_empty() {
+                tx.send(Message::Acted(succeeded, action)).await?;
             }
             anyhow::ensure!(
                 failed == 0,
@@ -353,7 +357,7 @@ async fn execute(
             core.update_task_limits(id, limits).await?;
             tx.send(Message::Detail(
                 id,
-                core.get_task(id).await?.map(|d| d.redacted()),
+                core.get_task(id).await?.map(|d| Box::new(d.redacted())),
             ))
             .await?;
             tx.send(Message::Saved).await?;

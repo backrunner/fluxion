@@ -5,6 +5,7 @@ mod model;
 mod sandbox;
 #[cfg(test)]
 mod tests;
+mod tooltip;
 mod ui;
 mod ui_style;
 mod updater;

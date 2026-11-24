@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeSet, HashMap},
     path::Path,
+    rc::Rc,
 };
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -55,11 +56,12 @@ impl Preferences {
                 };
                 if kind.is_dir() {
                     pending.push((entry.path(), depth + 1));
-                } else if kind.is_file() && entry.file_name() == "localstorage.sqlite3" {
-                    if let Ok(values) = read_legacy_preferences(&entry.path()).await {
-                        for (key, value) in values {
-                            result.import_legacy(&key, &value);
-                        }
+                } else if kind.is_file()
+                    && entry.file_name() == "localstorage.sqlite3"
+                    && let Ok(values) = read_legacy_preferences(&entry.path()).await
+                {
+                    for (key, value) in values {
+                        result.import_legacy(&key, &value);
                     }
                 }
             }
@@ -111,8 +113,11 @@ async fn read_legacy_preferences(path: &Path) -> anyhow::Result<Vec<(String, Str
             let key: String = row.try_get("key")?;
             let bytes: Vec<u8> = row.try_get("value")?;
             let units = bytes
-                .chunks_exact(2)
-                .map(|b| u16::from_le_bytes([b[0], b[1]]))
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .copied()
+                .map(u16::from_le_bytes)
                 .collect::<Vec<_>>();
             Ok((key, String::from_utf16(&units)?))
         })
@@ -202,7 +207,7 @@ pub fn eta(done: u64, total: Option<u64>, speed: u64) -> String {
 
 #[derive(Default)]
 pub struct TaskStore {
-    pub tasks: Vec<TaskSummary>,
+    pub tasks: Vec<Rc<TaskSummary>>,
     pub speeds: HashMap<TaskId, (u64, u64)>,
 }
 impl TaskStore {
@@ -210,9 +215,9 @@ impl TaskStore {
         match event {
             CoreEvent::TaskCreated(task) => {
                 if let Some(old) = self.tasks.iter_mut().find(|t| t.id == task.id) {
-                    *old = task.clone();
+                    *old = Rc::new(task.clone());
                 } else {
-                    self.tasks.insert(0, task.clone());
+                    self.tasks.insert(0, Rc::new(task.clone()));
                 }
             }
             CoreEvent::TaskSpeed(s) => {
@@ -229,6 +234,7 @@ impl TaskStore {
             }
             CoreEvent::TaskStateChanged { task_id, state } => {
                 if let Some(t) = self.tasks.iter_mut().find(|t| t.id == *task_id) {
+                    let t = Rc::make_mut(t);
                     t.state = state.clone();
                     if active(state) || *state == TaskState::Queued {
                         t.error = None;
@@ -240,6 +246,7 @@ impl TaskStore {
             }
             CoreEvent::TaskProgress(p) => {
                 if let Some(t) = self.tasks.iter_mut().find(|t| t.id == p.task_id) {
+                    let t = Rc::make_mut(t);
                     t.downloaded_bytes = p.downloaded_bytes;
                     t.uploaded_bytes = p.uploaded_bytes;
                     t.total_bytes = p.total_bytes.or(t.total_bytes);
@@ -247,6 +254,7 @@ impl TaskStore {
             }
             CoreEvent::TaskError(e) => {
                 if let Some(t) = self.tasks.iter_mut().find(|t| t.id == e.task_id) {
+                    let t = Rc::make_mut(t);
                     t.state = TaskState::Failed;
                     t.error = Some(e.message.clone());
                 }
@@ -254,6 +262,7 @@ impl TaskStore {
             }
             CoreEvent::TaskCompleted { task_id, .. } => {
                 if let Some(t) = self.tasks.iter_mut().find(|t| t.id == *task_id) {
+                    let t = Rc::make_mut(t);
                     t.state = TaskState::Completed;
                     t.downloaded_bytes = t.total_bytes.unwrap_or(t.downloaded_bytes);
                 }

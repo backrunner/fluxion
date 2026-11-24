@@ -126,12 +126,12 @@ impl Workspace {
                 self.tr("native.autoUpdates"),
                 Switch::new("startup-update-checks")
                     .small()
-                    .tooltip(self.tr("native.autoUpdates"))
                     .checked(self.preferences.auto_check_updates)
                     .on_click(cx.listener(|this, value, _, cx| {
                         this.preferences.auto_check_updates = *value;
                         this.persist(cx);
-                    })),
+                    }))
+                    .hover_tooltip("update-checks-tooltip", self.tr("native.autoUpdates")),
             ))
             .child(
                 div()

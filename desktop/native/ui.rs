@@ -2,6 +2,7 @@ mod detail;
 mod list;
 mod settings;
 
+use crate::tooltip::HoverTooltipExt;
 use crate::{
     backend::{Action as TaskAction, Backend, Command, Message},
     form::{Form, FormEvent, FormKind, limit_text},
@@ -19,7 +20,8 @@ use gpui_component::{
     *,
 };
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, HashSet},
+    rc::Rc,
     time::{Duration, Instant},
 };
 
@@ -51,6 +53,7 @@ pub struct Workspace {
     browser_reply: Option<tokio::sync::oneshot::Sender<fluxion_browser::Response>>,
     settings_form: Option<Entity<Form>>,
     subscriptions: Vec<Subscription>,
+    form_subscription: Option<Subscription>,
     last_bt: Instant,
     list_scroll: UniformListScrollHandle,
     detail_scroll: ScrollHandle,
@@ -134,6 +137,7 @@ impl Workspace {
             browser_reply: None,
             settings_form: None,
             subscriptions,
+            form_subscription: None,
             last_bt: Instant::now(),
             list_scroll: UniformListScrollHandle::new(),
             detail_scroll: ScrollHandle::new(),
@@ -155,15 +159,37 @@ impl Workspace {
         cx.notify();
     }
     fn send(&mut self, command: Command, cx: &mut Context<Self>) {
-        if self.backend.commands.try_send(command).is_err() {
+        if let Err(error) = self.backend.commands.try_send(command) {
             self.error = self.tr("native.unavailable");
-            self.busy = false;
-            self.update_status = UpdateStatus::Error(self.tr("native.unavailable"));
-            for form in [&self.form, &self.settings_form].into_iter().flatten() {
-                form.update(cx, |form, cx| {
-                    form.busy = false;
-                    cx.notify();
-                });
+            match error.into_inner() {
+                Command::Create(_)
+                | Command::Act(..)
+                | Command::Limits(..)
+                | Command::Settings(_) => {
+                    self.busy = false;
+                    for form in [&self.form, &self.settings_form].into_iter().flatten() {
+                        form.update(cx, |form, cx| {
+                            form.busy = false;
+                            form.error.clone_from(&self.error);
+                            cx.notify();
+                        });
+                    }
+                }
+                Command::Preview(..) => {
+                    if let Some(form) = &self.form {
+                        form.update(cx, |form, cx| {
+                            form.resolving = false;
+                            form.error.clone_from(&self.error);
+                            cx.notify();
+                        });
+                    }
+                }
+                Command::DownloadUpdate(..)
+                | Command::InstallUpdate(_)
+                | Command::CheckUpdate(..) => {
+                    self.update_status = UpdateStatus::Error(self.error.clone());
+                }
+                _ => (),
             }
         }
         cx.notify();
@@ -240,7 +266,7 @@ impl Workspace {
             }
             Message::Restart => crate::request_shutdown(cx),
             Message::Snapshot(tasks, settings) => {
-                self.store.tasks = tasks;
+                self.store.tasks = tasks.into_iter().map(Rc::new).collect();
                 self.settings = settings;
                 self.loading = false;
                 self.store.speeds.retain(|id, _| {
@@ -252,7 +278,13 @@ impl Workspace {
                 self.checked
                     .retain(|id| self.store.tasks.iter().any(|t| t.id == *id));
                 if let Some(id) = self.selected {
-                    self.send(Command::Detail(id), cx);
+                    if self.store.tasks.iter().any(|t| t.id == id) {
+                        self.send(Command::Detail(id), cx);
+                    } else {
+                        self.selected = None;
+                        self.detail = None;
+                        self.bt = None;
+                    }
                 }
             }
             Message::Event(event) => {
@@ -260,12 +292,19 @@ impl Workspace {
                     self.settings = settings.clone();
                 }
                 self.store.apply(&event);
-                if let CoreEvent::TaskStateChanged { task_id, .. }
-                | CoreEvent::TaskCompleted { task_id, .. } = &event
+                // Only an inferred filename needs a detail lookup for a background row.
+                if let CoreEvent::TaskStateChanged {
+                    task_id,
+                    state: TaskState::Downloading,
+                } = &event
+                    && Some(*task_id) != self.selected
+                    && self
+                        .store
+                        .tasks
+                        .iter()
+                        .any(|t| t.id == *task_id && t.file_name.is_none())
                 {
-                    if Some(*task_id) != self.selected {
-                        self.send(Command::Detail(*task_id), cx);
-                    }
+                    self.send(Command::Detail(*task_id), cx);
                 }
 
                 if let Some(detail) = &mut self.detail
@@ -286,7 +325,9 @@ impl Workspace {
                     {
                         self.send(Command::Detail(id), cx);
                     }
-                    if self.last_bt.elapsed() > Duration::from_secs(1)
+                    if self.preferences.detail_open
+                        && !self.settings_open
+                        && self.last_bt.elapsed() > Duration::from_secs(1)
                         && self
                             .store
                             .tasks
@@ -298,14 +339,23 @@ impl Workspace {
                     }
                 }
             }
-            Message::Detail(id, detail) => {
-                if let Some(detail) = &detail
-                    && let Some(task) = self.store.tasks.iter_mut().find(|t| t.id == id)
+            Message::Detail(id, mut detail) => {
+                if let Some(detail) = &mut detail
+                    && let Some(summary) = self.store.tasks.iter_mut().find(|t| t.id == id)
                 {
-                    *task = TaskSummary::from(&detail.task);
+                    // Detail reads and live events arrive from independent producers.
+                    // Keep event-owned progress/state when a slower read finishes.
+                    let summary = Rc::make_mut(summary);
+                    summary.file_name.clone_from(&detail.task.file_name);
+                    summary.total_bytes = summary.total_bytes.or(detail.task.total_bytes);
+                    detail.task.state.clone_from(&summary.state);
+                    detail.task.error.clone_from(&summary.error);
+                    detail.task.downloaded_bytes = summary.downloaded_bytes;
+                    detail.task.uploaded_bytes = summary.uploaded_bytes;
+                    detail.task.total_bytes = summary.total_bytes;
                 }
                 if self.selected == Some(id) {
-                    self.detail = detail;
+                    self.detail = detail.map(|detail| *detail);
                 }
             }
             Message::Bt(id, state) => {
@@ -317,7 +367,7 @@ impl Workspace {
                 if draft.reply.is_closed() {
                     return;
                 }
-                if self.busy || window.has_active_dialog(cx) {
+                if self.loading || self.busy || window.has_active_dialog(cx) {
                     let _ = draft
                         .reply
                         .send(fluxion_browser::Response::error("app_busy"));
@@ -344,38 +394,35 @@ impl Workspace {
                 self.select(id, window, cx);
                 self.send(Command::Refresh, cx);
             }
-            Message::Acted(id, action) => {
+            Message::Acted(ids, action) => {
+                let ids: HashSet<_> = ids.into_iter().collect();
+                let old_size = self.preferences.trash.len();
                 match action {
-                    TaskAction::Trash => {
-                        self.preferences.trash.insert(id);
-                        self.checked.remove(&id);
-                        self.persist(cx);
-                    }
-                    TaskAction::Restore | TaskAction::Start => {
-                        if self.preferences.trash.remove(&id) {
-                            self.persist(cx);
-                        }
-                    }
-                    TaskAction::Delete(_) => {
-                        self.store.tasks.retain(|t| t.id != id);
-                        self.store.speeds.remove(&id);
-                        self.preferences.trash.remove(&id);
-                        self.checked.remove(&id);
-                        self.persist(cx);
+                    TaskAction::Trash => self.preferences.trash.extend(ids.iter().copied()),
+                    TaskAction::Restore | TaskAction::Start | TaskAction::Delete(_) => {
+                        self.preferences.trash.retain(|id| !ids.contains(id))
                     }
                     _ => (),
                 }
-                if self.selected == Some(id) {
-                    if matches!(
-                        action,
-                        TaskAction::Delete(_) | TaskAction::Trash | TaskAction::Restore
-                    ) {
+                if old_size != self.preferences.trash.len() {
+                    self.persist(cx);
+                }
+                if matches!(action, TaskAction::Delete(_)) {
+                    self.store.tasks.retain(|task| !ids.contains(&task.id));
+                    self.store.speeds.retain(|id, _| !ids.contains(id));
+                }
+                if matches!(
+                    action,
+                    TaskAction::Delete(_) | TaskAction::Trash | TaskAction::Restore
+                ) {
+                    self.checked.retain(|id| !ids.contains(id));
+                    if self.selected.is_some_and(|id| ids.contains(&id)) {
                         self.selected = None;
                         self.detail = None;
                         self.bt = None;
-                    } else {
-                        self.send(Command::Detail(id), cx);
                     }
+                } else if let Some(id) = self.selected.filter(|id| ids.contains(id)) {
+                    self.send(Command::Detail(id), cx);
                 }
             }
             Message::Saved => {
@@ -388,7 +435,7 @@ impl Workspace {
             Message::Preview(generation, result) => {
                 if let Some(form) = &self.form {
                     form.update(cx, |form, cx| {
-                        if form.preview_generation == generation {
+                        if form.resolving && form.preview_generation == generation {
                             form.resolving = false;
                             match result {
                                 Ok(preview) => form.preview = Some(preview),
@@ -422,7 +469,7 @@ impl Workspace {
         }
         cx.notify();
     }
-    fn visible(&self, cx: &App) -> Vec<TaskSummary> {
+    fn visible(&self, cx: &App) -> Vec<Rc<TaskSummary>> {
         let search = self.search.read(cx).value().to_lowercase();
         let mut tasks = self
             .store
@@ -430,12 +477,13 @@ impl Workspace {
             .iter()
             .filter(|task| {
                 self.filter.matches(task, &self.preferences.trash)
-                    && task
-                        .file_name
-                        .as_deref()
-                        .unwrap_or("")
-                        .to_lowercase()
-                        .contains(&search)
+                    && (search.is_empty()
+                        || task
+                            .file_name
+                            .as_deref()
+                            .unwrap_or("")
+                            .to_lowercase()
+                            .contains(&search))
             })
             .cloned()
             .collect::<Vec<_>>();
@@ -496,21 +544,22 @@ impl Workspace {
         if self.busy || window.has_active_dialog(cx) {
             return;
         }
-        let ids: Vec<_> = ids
-            .into_iter()
-            .filter(|id| {
-                self.store
-                    .tasks
-                    .iter()
-                    .find(|t| t.id == *id)
-                    .is_some_and(|t| match action {
+        let requested: HashSet<_> = ids.into_iter().collect();
+        let ids: Vec<_> = self
+            .store
+            .tasks
+            .iter()
+            .filter(|t| {
+                requested.contains(&t.id)
+                    && match action {
                         TaskAction::Start => can_start(&t.state),
                         TaskAction::Pause => active(&t.state),
                         TaskAction::Stop => can_stop(&t.state),
                         TaskAction::Open | TaskAction::Reveal => t.state == TaskState::Completed,
                         _ => true,
-                    })
+                    }
             })
+            .map(|t| t.id)
             .collect();
         if ids.is_empty() {
             return;
@@ -594,7 +643,7 @@ impl Workspace {
         }
     }
     fn open_form(&mut self, kind: FormKind, window: &mut Window, cx: &mut Context<Self>) {
-        if self.busy || window.has_active_dialog(cx) {
+        if self.loading || self.busy || window.has_active_dialog(cx) {
             return;
         }
         let title = self.tr(if matches!(kind, FormKind::Create) {
@@ -621,11 +670,11 @@ impl Workspace {
                 );
             });
         }
-        self.subscriptions.push(
-            cx.subscribe_in(&form, window, |this, _, event, window, cx| {
-                this.form_event(event, window, cx)
-            }),
-        );
+        self.form_subscription = Some(cx.subscribe_in(
+            &form,
+            window,
+            |this, _, event, window, cx| this.form_event(event, window, cx),
+        ));
         self.form = Some(form.clone());
         let weak = cx.entity().downgrade();
         let focus = form.clone();
@@ -643,6 +692,7 @@ impl Workspace {
                     move |_, _, cx| {
                         let _ = weak.update(cx, |this, cx| {
                             this.browser_reply.take();
+                            this.form_subscription = None;
                             this.form = None;
                             cx.notify();
                         });
@@ -674,7 +724,7 @@ impl Workspace {
                     }
                     return;
                 }
-                let command = match command {
+                let command = match command.as_ref() {
                     Command::Create(input) => Command::Create(input.clone()),
                     Command::Settings(s) => Command::Settings(s.clone()),
                     Command::Limits(id, limits) => Command::Limits(*id, limits.clone()),
@@ -689,7 +739,7 @@ impl Workspace {
         }
     }
     fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if window.has_active_dialog(cx) {
+        if self.loading || window.has_active_dialog(cx) {
             return;
         }
         self.selection_mode = false;
@@ -712,6 +762,9 @@ impl Workspace {
         }
         self.settings_open = true;
         cx.notify();
+    }
+    fn list_has_keyboard_focus(&self, window: &mut Window, cx: &mut App) -> bool {
+        !self.settings_open && !window.has_active_dialog(cx) && !window.has_focused_input(cx)
     }
     fn move_selection(&mut self, direction: isize, window: &mut Window, cx: &mut Context<Self>) {
         let tasks = self.visible(cx);
@@ -756,6 +809,8 @@ impl Render for Workspace {
             }))
             .on_action(cx.listener(|this, _: &crate::Search, window, cx| {
                 if !window.has_active_dialog(cx) {
+                    this.settings_open = false;
+                    cx.notify();
                     this.search.update(cx, |input, cx| input.focus(window, cx));
                 }
             }))
@@ -789,11 +844,16 @@ impl Render for Workspace {
                 }
             }))
             .on_action(cx.listener(|this, _: &crate::Remove, window, cx| {
-                if !window.has_focused_input(cx) {
+                if this.list_has_keyboard_focus(window, cx) {
+                    let visible = this.visible(cx);
                     let ids = if this.selection_mode {
-                        this.checked.iter().copied().collect()
+                        list::batch_targets(&visible, true, &this.checked)
                     } else {
-                        this.selected.into_iter().collect()
+                        visible
+                            .iter()
+                            .filter(|t| Some(t.id) == this.selected)
+                            .map(|t| t.id)
+                            .collect()
                     };
                     this.act(
                         ids,
@@ -808,19 +868,19 @@ impl Render for Workspace {
                 }
             }))
             .on_action(cx.listener(|this, _: &crate::NextTask, window, cx| {
-                if !window.has_focused_input(cx) {
+                if this.list_has_keyboard_focus(window, cx) {
                     this.move_selection(1, window, cx);
                 }
             }))
             .on_action(cx.listener(|this, _: &crate::PreviousTask, window, cx| {
-                if !window.has_focused_input(cx) {
+                if this.list_has_keyboard_focus(window, cx) {
                     this.move_selection(-1, window, cx);
                 }
             }))
             .on_action(cx.listener(|this, _: &crate::ToggleTask, window, cx| {
-                if !window.has_focused_input(cx)
+                if this.list_has_keyboard_focus(window, cx)
                     && let Some(id) = this.selected
-                    && let Some(task) = this.store.tasks.iter().find(|t| t.id == id)
+                    && let Some(task) = this.visible(cx).into_iter().find(|t| t.id == id)
                 {
                     let action = if active(&task.state) {
                         TaskAction::Pause
@@ -1103,6 +1163,9 @@ mod tests {
             Root::new(view, window, cx)
         });
         let view = workspace.unwrap();
+        tx.try_send(Message::Snapshot(vec![], Default::default()))
+            .unwrap();
+        cx.run_until_parked();
         let download = Download {
             url: "https://example.test/archive?opaque=private-url".into(),
             filename: Some("browser.zip".into()),
@@ -1166,7 +1229,7 @@ mod tests {
                 });
                 let command = form.read(cx).command(cx).unwrap();
                 view.update(cx, |view, cx| {
-                    view.form_event(&FormEvent::Submit(command), window, cx)
+                    view.form_event(&FormEvent::Submit(Box::new(command)), window, cx)
                 });
             })
             .unwrap();
@@ -1358,6 +1421,90 @@ mod tests {
         drop(tx);
         cx.run_until_parked();
     }
+    #[gpui::test]
+    fn keyboard_actions_only_reach_visible_downloads(cx: &mut gpui::TestAppContext) {
+        use crate::{
+            Remove, ToggleTask,
+            backend::{Action, Command},
+        };
+        let (commands, rx) = async_channel::bounded(8);
+        let (tx, messages) = async_channel::bounded(8);
+        let (_done, stopped) = async_channel::bounded(1);
+        cx.update(gpui_component::init);
+        let mut selected = crate::tests::task(fluxion_core::TaskState::Queued);
+        selected.file_name = Some("fixture.zip".into());
+        let id = selected.id;
+        tx.try_send(Message::Snapshot(vec![selected], Default::default()))
+            .unwrap();
+        let mut workspace = None;
+        let window = cx.add_window(|window, cx| {
+            let view = cx.new(|cx| {
+                Workspace::new(
+                    Backend {
+                        commands,
+                        messages,
+                        stopped,
+                    },
+                    Preferences {
+                        auto_check_updates: false,
+                        ..Default::default()
+                    },
+                    window,
+                    cx,
+                )
+            });
+            workspace = Some(view.clone());
+            Root::new(view, window, cx)
+        });
+        let window: gpui::AnyWindowHandle = window.into();
+        let view = workspace.unwrap();
+        cx.run_until_parked();
+        window
+            .update(cx, |_, window, cx| {
+                view.update(cx, |this, cx| {
+                    this.selected = Some(id);
+                    this.checked.insert(id);
+                    this.selection_mode = true;
+                    this.search
+                        .update(cx, |input, cx| input.set_value("absent", window, cx));
+                    window.focus(&this.focus);
+                });
+                window.dispatch_action(Box::new(Remove), cx);
+            })
+            .unwrap();
+        cx.run_until_parked();
+        window
+            .update(cx, |_, window, cx| {
+                assert!(
+                    !window.has_active_dialog(cx),
+                    "Hidden selections cannot be deleted"
+                );
+                view.update(cx, |this, cx| {
+                    this.search
+                        .update(cx, |input, cx| input.set_value("", window, cx));
+                    this.open_settings(window, cx);
+                });
+                window.dispatch_action(Box::new(ToggleTask), cx);
+            })
+            .unwrap();
+        cx.run_until_parked();
+        assert!(
+            rx.try_recv().is_err(),
+            "Settings must not start the selected download"
+        );
+        window
+            .update(cx, |_, window, cx| {
+                view.update(cx, |this, cx| {
+                    this.select_filter(super::Filter::All, cx);
+                    window.focus(&this.focus);
+                });
+                window.dispatch_action(Box::new(ToggleTask), cx);
+            })
+            .unwrap();
+        cx.run_until_parked();
+        assert!(matches!(rx.try_recv(), Ok(Command::Act(ids, Action::Start)) if ids == [id]));
+    }
+
     #[gpui::test]
     fn root_dialog_changes_redraw_workspace(cx: &mut gpui::TestAppContext) {
         use std::{cell::Cell, rc::Rc};
