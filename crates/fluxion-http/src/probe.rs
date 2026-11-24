@@ -91,18 +91,20 @@ pub async fn probe(
         return Ok(probe);
     }
     if response.status() == StatusCode::PARTIAL_CONTENT {
-        let total_bytes = response
+        let confirmed_total = response
             .headers()
             .get(CONTENT_RANGE)
             .and_then(|value| value.to_str().ok())
-            .and_then(parse_content_range_total)
-            .or_else(|| head_probe.as_ref().and_then(|probe| probe.total_bytes));
+            .and_then(parse_content_range)
+            .and_then(|(start, end, total)| if (start, end) == (0, 0) { total } else { None });
+        let total_bytes =
+            confirmed_total.or_else(|| head_probe.as_ref().and_then(|probe| probe.total_bytes));
         return Ok(ResourceProbe {
             final_url,
             total_bytes,
             // Only a confirmed 206 with a determinable length enables
             // segmented download (requirements §4.2).
-            supports_ranges: total_bytes.is_some(),
+            supports_ranges: confirmed_total.is_some(),
             file_name: file_name_from_headers(response.headers()).or_else(|| {
                 head_probe
                     .as_ref()
@@ -141,15 +143,13 @@ pub async fn probe(
     Err(http_status_error(response.status()))
 }
 
-fn parse_content_range_total(value: &str) -> Option<u64> {
-    let (_, total) = value.split_once('/')?;
-    total.trim().parse().ok()
-}
-
 /// Parse a `Content-Range: bytes <start>-<end>/<total>` header into
 /// `(start, end, total)`. `total` is None for `*` (unknown length).
 pub fn parse_content_range(value: &str) -> Option<(u64, u64, Option<u64>)> {
-    let rest = value.trim().strip_prefix("bytes")?.trim();
+    let (unit, rest) = value.trim().split_once(char::is_whitespace)?;
+    if !unit.eq_ignore_ascii_case("bytes") {
+        return None;
+    }
     let (range, total) = rest.split_once('/')?;
     let (start, end) = range.trim().split_once('-')?;
     let start = start.trim().parse().ok()?;
@@ -158,7 +158,7 @@ pub fn parse_content_range(value: &str) -> Option<(u64, u64, Option<u64>)> {
         "*" => None,
         value => Some(value.parse().ok()?),
     };
-    Some((start, end, total))
+    (start <= end && total.is_none_or(|size| end < size)).then_some((start, end, total))
 }
 
 fn file_name_from_headers(headers: &reqwest::header::HeaderMap) -> Option<String> {

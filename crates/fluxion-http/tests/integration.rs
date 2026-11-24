@@ -22,6 +22,7 @@ enum ServerMode {
     NoRanges,
     /// HEAD claims Range support but GET ignores it (lying server).
     LyingHead,
+    MalformedProbe,
     /// First response is a 302 redirect to `/file`; target supports ranges.
     Redirect,
     /// Empty resource: Range 0-0 correctly returns 416, full GET returns 200.
@@ -106,6 +107,10 @@ async fn handle_conn(
             continue;
         }
 
+        if mode == ServerMode::MalformedProbe && range.as_deref() == Some("bytes=0-0") {
+            stream.write_all(b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 1-1/999\r\nContent-Length: 1\r\n\r\nx").await?;
+            continue;
+        }
         if total == 0 && range.is_some() {
             stream
                 .write_all(b"HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */0\r\nContent-Length: 0\r\nConnection: keep-alive\r\n\r\n")
@@ -188,6 +193,11 @@ fn http_input(url: &str, save_dir: &std::path::Path, min_split: u64) -> CreateTa
 /// Run one download to terminal state; panics on failure/timeout.
 async fn run_to_completion(core: &FluxionCore, input: CreateTaskInput) -> fluxion_core::TaskId {
     let task_id = core.create_task(input).await.expect("create");
+    start_to_completion(core, task_id).await;
+    task_id
+}
+
+async fn start_to_completion(core: &FluxionCore, task_id: fluxion_core::TaskId) {
     core.start_task(task_id).await.expect("start");
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
     loop {
@@ -198,7 +208,7 @@ async fn run_to_completion(core: &FluxionCore, input: CreateTaskInput) -> fluxio
             .expect("get")
             .expect("task exists");
         match detail.task.state {
-            TaskState::Completed => return task_id,
+            TaskState::Completed => return,
             TaskState::Failed => panic!("download failed: {:?}", detail.task.error),
             _ => tokio::time::sleep(std::time::Duration::from_millis(50)).await,
         }
@@ -293,4 +303,91 @@ async fn signed_source_url_is_restored_from_isolated_credentials() {
     assert!(!config.url.as_str().contains("top-secret"));
     let written = std::fs::read(dir.path().join("out.bin")).expect("output file");
     assert_eq!(&written, body.as_ref());
+}
+
+#[tokio::test]
+async fn malformed_probe_falls_back_without_overwriting_connection_preference() {
+    let body = Arc::new(test_body(300 * 1024));
+    let url = spawn_server(body.clone(), ServerMode::MalformedProbe).await;
+    let dir = tempfile::tempdir().unwrap();
+    let core = build_core(dir.path()).await;
+    let id = run_to_completion(&core, http_input(&url, dir.path(), 64 * 1024)).await;
+    let detail = core.get_task(id).await.unwrap().unwrap();
+    let TaskKind::Http(config) = detail.task.kind else {
+        panic!("expected HTTP")
+    };
+    assert_eq!(config.max_connections, Some(4));
+    assert_eq!(std::fs::read(dir.path().join("out.bin")).unwrap(), *body);
+}
+
+#[tokio::test]
+async fn deleted_partial_file_invalidates_completed_segment_offsets() {
+    use fluxion_core::{HttpResourceMeta, HttpSegment, HttpSegmentState, TaskStore};
+    let body = Arc::new(test_body(256 * 1024));
+    let url = spawn_server(body.clone(), ServerMode::Ranges).await;
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(
+        SqliteTaskStore::connect(dir.path().join("store.sqlite"))
+            .await
+            .unwrap(),
+    );
+    let core = FluxionCore::new(store.clone(), vec![Arc::new(HttpEngine::new().unwrap())]);
+    let id = core
+        .create_task(http_input(&url, dir.path(), 64 * 1024))
+        .await
+        .unwrap();
+    let total = body.len() as u64;
+    store
+        .update_http_meta(
+            id,
+            HttpResourceMeta {
+                final_url: url.parse().unwrap(),
+                etag: Some("\"test-etag\"".into()),
+                last_modified: None,
+                content_length: Some(total),
+                supports_ranges: true,
+                temp_path: Some(dir.path().join("out.bin.fluxionpart")),
+            },
+        )
+        .await
+        .unwrap();
+    store
+        .replace_http_segments(
+            id,
+            vec![HttpSegment {
+                index: 0,
+                start_byte: 0,
+                end_byte: total - 1,
+                downloaded_bytes: total,
+                state: HttpSegmentState::Completed,
+                retry_count: 0,
+                last_error: None,
+            }],
+        )
+        .await
+        .unwrap();
+    start_to_completion(&core, id).await;
+    assert_eq!(std::fs::read(dir.path().join("out.bin")).unwrap(), *body);
+}
+
+#[tokio::test]
+async fn pause_interrupts_stalled_probe() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let core = build_core(dir.path()).await;
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let id = core
+        .create_task(http_input(&url, dir.path(), 1))
+        .await
+        .unwrap();
+    core.start_task(id).await.unwrap();
+    let (_stalled, _) = listener.accept().await.unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(2), core.pause_task(id))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        core.get_task(id).await.unwrap().unwrap().task.state,
+        TaskState::Paused
+    );
 }

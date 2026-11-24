@@ -217,7 +217,11 @@ impl DownloadEngine for HttpEngine {
         headers.extend(task.credentials.headers.clone());
         let mut previous_meta = ctx.storage.get_http_meta(task.task.id).await?;
         let client = self.client_for(&ctx, &config, &proxy).await?;
-        let mut resource = probe(&client, &config, &headers).await?;
+        let mut resource = tokio::select! {
+            biased;
+            _ = ctx.cancelled() => return Err(FluxionError::cancelled()),
+            resource = probe(&client, &config, &headers) => resource?,
+        };
         // A pinned final URL can deliberately keep its entire query in
         // SecretStore (browser handoff). Preserve that privacy in probe metadata
         // and resume comparisons, including nonstandard signed query names.
@@ -242,7 +246,11 @@ impl DownloadEngine for HttpEngine {
                     .as_ref()
                     .and_then(|meta| meta.temp_path.clone())
                 {
-                    let _ = tokio::fs::remove_file(&part).await;
+                    match tokio::fs::remove_file(&part).await {
+                        Ok(()) => (),
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+                        Err(error) => return Err(error.into()),
+                    }
                 }
                 previous_meta = None;
                 let _ = ctx.progress(task.task.id, 0, 0, resource.total_bytes).await;
@@ -258,11 +266,6 @@ impl DownloadEngine for HttpEngine {
         };
         ctx.storage.update_http_meta(task.task.id, meta).await?;
         task.task.total_bytes = resource.total_bytes;
-        if !resource.supports_ranges
-            && let TaskKind::Http(config) = &mut task.task.kind
-        {
-            config.max_connections = Some(1);
-        }
         if task.task.file_name.is_none() {
             // Persist the decoded + sanitized name so the database always
             // matches the file the engine writes to disk (open/reveal/delete
@@ -277,13 +280,20 @@ impl DownloadEngine for HttpEngine {
                         .filter(|value| !value.is_empty())
                         .map(ToOwned::to_owned)
                 })
+                .or_else(|| Some("download".to_string()))
                 .map(|name| {
                     fluxion_core::sanitize_file_name(&fluxion_core::percent_decode_lossy(&name))
                 });
         } else if let Some(name) = &task.task.file_name {
             task.task.file_name = Some(fluxion_core::sanitize_file_name(name));
         }
-        ctx.storage.update_task(task.task.clone()).await?;
+        ctx.storage
+            .update_metadata(
+                task.task.id,
+                task.task.file_name.clone(),
+                task.task.total_bytes,
+            )
+            .await?;
         Ok(task)
     }
 
@@ -320,10 +330,13 @@ impl DownloadEngine for HttpEngine {
             .min_split_size
             .unwrap_or(HttpTaskConfig::DEFAULT_MIN_SPLIT_SIZE)
             .max(1);
-        let segmented = total
-            .map(|total| total > min_split_size && max_connections > 1)
-            .unwrap_or(false);
         let existing_meta = ctx.storage.get_http_meta(task.task.id).await?;
+        let segmented = existing_meta
+            .as_ref()
+            .is_some_and(|meta| meta.supports_ranges)
+            && total
+                .map(|total| total > min_split_size && max_connections > 1)
+                .unwrap_or(false);
         let resume_validator = existing_meta.as_ref().and_then(http_resume_validator);
         ctx.storage
             .update_http_meta(
@@ -354,6 +367,12 @@ impl DownloadEngine for HttpEngine {
         let client = self.client_for(&ctx, &config, &proxy).await?;
         if segmented {
             let total = total.unwrap();
+            if existing_len(&part_path).await? != total {
+                // A missing or truncated preallocated file cannot satisfy stored offsets.
+                ctx.storage
+                    .replace_http_segments(task.task.id, Vec::new())
+                    .await?;
+            }
             let segments = self
                 .segments_for_task(&ctx, task.task.id, total, max_connections, min_split_size)
                 .await?;
@@ -384,6 +403,17 @@ impl DownloadEngine for HttpEngine {
             )
             .await?;
         } else {
+            if !ctx
+                .storage
+                .list_http_segments(task.task.id)
+                .await?
+                .is_empty()
+            {
+                tokio::fs::File::create(&part_path).await?;
+                ctx.storage
+                    .replace_http_segments(task.task.id, Vec::new())
+                    .await?;
+            }
             // Single-connection path with its own retry loop: the download is
             // resumable (append + Range from the existing length), so each
             // attempt continues where the previous one ended.
@@ -411,7 +441,7 @@ impl DownloadEngine for HttpEngine {
                             && !control.is_cancelled() =>
                     {
                         warn!(task_id = ?task.task.id, attempt = attempts, %error, "single download failed; retrying");
-                        tokio::time::sleep(retry_backoff(attempts)).await;
+                        cancellable(&control, tokio::time::sleep(retry_backoff(attempts))).await?;
                     }
                     Err(error) => return Err(error),
                 }
@@ -585,7 +615,7 @@ impl HttpEngine {
             .map(|segment| segment.downloaded_bytes)
             .sum::<u64>();
         let downloaded = Arc::new(tokio::sync::Mutex::new(completed));
-        let mut handles = Vec::new();
+        let mut handles = tokio::task::JoinSet::new();
         for segment in segments {
             if segment.is_complete() {
                 continue;
@@ -600,7 +630,7 @@ impl HttpEngine {
             let downloaded = downloaded.clone();
             let resume_validator = resume_validator.clone();
             let throttle = throttle.clone();
-            handles.push(tokio::spawn(async move {
+            handles.spawn(async move {
                 let mut attempts = 0_u8;
                 let mut segment = segment;
                 loop {
@@ -662,19 +692,17 @@ impl HttpEngine {
                                 .await;
                             segment = next;
                             warn!(?task_id, segment = segment.index, attempt = attempts, %error, "segment failed; retrying");
-                            tokio::time::sleep(retry_backoff(attempts)).await;
+                            cancellable(&control, tokio::time::sleep(retry_backoff(attempts))).await?;
                         }
                         Err(error) => return Err(error),
                     }
                 }
-            }));
+            });
         }
-        // Await every worker. On the first failure, abort the rest and drain
-        // them — no orphan worker may keep writing after the task fails.
+        // Join in completion order so a stalled segment cannot hide a failed sibling.
         let mut first_error: Option<FluxionError> = None;
-        let mut iter = handles.into_iter();
-        while let Some(handle) = iter.next() {
-            let outcome = match handle.await {
+        while let Some(result) = handles.join_next().await {
+            let outcome = match result {
                 Ok(Ok(())) => None,
                 Ok(Err(error)) => Some(error),
                 Err(join_error) => Some(FluxionError::new(
@@ -684,13 +712,9 @@ impl HttpEngine {
             };
             if let Some(error) = outcome {
                 first_error = Some(error);
-                let rest: Vec<_> = iter.collect();
-                for handle in &rest {
-                    handle.abort();
-                }
-                for handle in rest {
-                    let _ = handle.await;
-                }
+                // Let other workers finish any pending write and checkpoint it.
+                control.cancellation_token().cancel();
+                while handles.join_next().await.is_some() {}
                 break;
             }
         }
