@@ -1,15 +1,13 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::Arc;
 
 use anyhow::Result;
 use fluxion_core::{CreateTaskInput, TaskFilter, TaskId};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::UnixStream,
-    sync::{Notify, broadcast},
+    sync::broadcast,
 };
+use tokio_util::sync::CancellationToken;
 use tracing_subscriber::EnvFilter;
 
 use crate::{
@@ -26,7 +24,7 @@ pub async fn run() -> Result<()> {
     let listener = listen(socket.clone()).await?;
     let pid_path = default_pid_path();
     write_pid_file(&pid_path)?;
-    let shutdown = ShutdownSignal::default();
+    let shutdown = CancellationToken::new();
     println!("fluxiond listening on {}", socket.display());
     loop {
         tokio::select! {
@@ -40,7 +38,7 @@ pub async fn run() -> Result<()> {
                     }
                 });
             }
-            () = shutdown.wait() => {
+            () = shutdown.cancelled() => {
                 break;
             }
         }
@@ -51,28 +49,6 @@ pub async fn run() -> Result<()> {
     }
     cleanup_runtime_files(&pid_path, &socket).await;
     Ok(())
-}
-
-#[derive(Clone, Default)]
-struct ShutdownSignal {
-    requested: Arc<AtomicBool>,
-    notify: Arc<Notify>,
-}
-
-impl ShutdownSignal {
-    fn request(&self) {
-        self.requested.store(true, Ordering::SeqCst);
-        self.notify.notify_waiters();
-    }
-
-    async fn wait(&self) {
-        loop {
-            if self.requested.load(Ordering::SeqCst) {
-                return;
-            }
-            self.notify.notified().await;
-        }
-    }
 }
 
 fn write_pid_file(pid_path: &std::path::Path) -> Result<()> {
@@ -91,7 +67,7 @@ async fn cleanup_runtime_files(pid_path: &std::path::Path, socket_path: &std::pa
 async fn handle_client(
     core: Arc<fluxion_core::FluxionCore>,
     stream: UnixStream,
-    shutdown: ShutdownSignal,
+    shutdown: CancellationToken,
 ) -> Result<()> {
     let (read, mut write) = stream.into_split();
     let mut reader = BufReader::new(read);
@@ -134,10 +110,10 @@ async fn handle_client(
 async fn dispatch(
     core: Arc<fluxion_core::FluxionCore>,
     request: IpcRequest,
-    shutdown: ShutdownSignal,
+    shutdown: CancellationToken,
 ) -> IpcResponse {
     let result = match request.method.as_str() {
-        "task.create" => match parse_params::<CreateTaskInput>(request.params) {
+        "task.create" => match create_params(request.params) {
             Ok(input) => core.create_task(input).await.map(json).map_err(to_string),
             Err(error) => Err(error),
         },
@@ -218,7 +194,7 @@ async fn dispatch(
         }
         "daemon.status" => Ok(json("running")),
         "daemon.stop" => {
-            shutdown.request();
+            shutdown.cancel();
             Ok(json("stopping"))
         }
         _ => Err(format!("unknown method {}", request.method)),
@@ -257,6 +233,18 @@ where
     }
 }
 
+fn create_params(value: serde_json::Value) -> Result<CreateTaskInput, String> {
+    // Earlier IPC clients could send the input directly. Current CLI clients
+    // use the same tagged envelope as the other task operations.
+    if value.get("type").is_none() {
+        return parse_params(value);
+    }
+    match parse_params(value)? {
+        IpcParams::CreateTask(input) => Ok(*input),
+        _ => Err("invalid params".into()),
+    }
+}
+
 fn parse_params<T: serde::de::DeserializeOwned>(value: serde_json::Value) -> Result<T, String> {
     serde_json::from_value(value).map_err(|error| error.to_string())
 }
@@ -292,4 +280,24 @@ async fn stream_events(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn creation_accepts_cli_envelope_and_legacy_input() {
+        let raw = serde_json::json!({
+            "kind": {"Http": {"url": "https://example.test/file", "method":"Get","headers": [], "redirect_limit":10}},
+            "save_dir":"/tmp", "limits":{"download_bytes_per_second":null,"upload_bytes_per_second":null},
+            "proxy":"Direct","credentials":{"headers":[],"extra":{}}
+        });
+        let input = create_params(raw).unwrap();
+        let wrapped = json(IpcParams::CreateTask(Box::new(input)));
+        assert_eq!(
+            create_params(wrapped).unwrap().save_dir,
+            std::path::Path::new("/tmp")
+        );
+        assert!(create_params(json(IpcParams::Empty)).is_err());
+    }
 }
