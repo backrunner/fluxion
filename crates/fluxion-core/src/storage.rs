@@ -19,6 +19,26 @@ pub trait TaskStore: Send + Sync {
         total_bytes: Option<u64>,
     ) -> Result<()>;
     async fn update_task(&self, task: DownloadTask) -> Result<()>;
+    async fn update_limits(&self, id: TaskId, limits: crate::TaskRateLimit) -> Result<()> {
+        let mut detail = self.get_task(id).await?.ok_or_else(|| {
+            crate::FluxionError::new(crate::FluxionErrorKind::Storage, "task not found")
+        })?;
+        detail.task.limits = limits;
+        self.update_task(detail.task).await
+    }
+    async fn update_metadata(
+        &self,
+        id: TaskId,
+        file_name: Option<String>,
+        total: Option<u64>,
+    ) -> Result<()> {
+        let mut detail = self.get_task(id).await?.ok_or_else(|| {
+            crate::FluxionError::new(crate::FluxionErrorKind::Storage, "task not found")
+        })?;
+        detail.task.file_name = file_name;
+        detail.task.total_bytes = total;
+        self.update_task(detail.task).await
+    }
     async fn update_error(&self, task_id: TaskId, message: Option<String>) -> Result<()>;
     async fn delete_task(&self, task_id: TaskId) -> Result<()>;
     async fn output_paths(&self, task_id: TaskId) -> Result<Vec<std::path::PathBuf>>;

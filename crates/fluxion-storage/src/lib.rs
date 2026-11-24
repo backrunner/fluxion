@@ -1,4 +1,4 @@
-use std::{path::Path, str::FromStr, sync::Arc};
+use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -7,6 +7,7 @@ use fluxion_core::{
     HttpSegment, HttpSegmentState, Result, SecretStore, SettingsSnapshot, TaskCredentials,
     TaskDetail, TaskFilter, TaskId, TaskKind, TaskState, TaskStore, TaskSummary, new_task_id,
 };
+use futures::TryStreamExt;
 use sqlx::{
     Row, SqlitePool,
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
@@ -49,13 +50,11 @@ impl SqliteTaskStore {
         if let Some(parent) = path.as_ref().parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
-        let options = SqliteConnectOptions::from_str(&format!(
-            "sqlite://{}?mode=rwc",
-            path.as_ref().display()
-        ))
-        .map_err(storage_error)?
-        .foreign_keys(true)
-        .journal_mode(SqliteJournalMode::Wal);
+        let options = SqliteConnectOptions::new()
+            .filename(path.as_ref())
+            .create_if_missing(true)
+            .foreign_keys(true)
+            .journal_mode(SqliteJournalMode::Wal);
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
             .connect_with(options)
@@ -113,75 +112,85 @@ impl SqliteTaskStore {
     }
 
     async fn migrate_sensitive_data(&self) -> Result<()> {
-        let rows = sqlx::query("SELECT id, task_json, credentials_json FROM tasks")
+        let mut cursor = 0_i64;
+        loop {
+            let rows = sqlx::query(
+                "SELECT rowid, id, task_json, credentials_json FROM tasks WHERE rowid > ? ORDER BY rowid LIMIT 64"
+            )
+            .bind(cursor)
             .fetch_all(&self.pool)
             .await
             .map_err(storage_error)?;
-        for row in rows {
-            let id =
-                TaskId::parse_str(row.get::<String, _>("id").as_str()).map_err(storage_error)?;
-            let mut task: DownloadTask =
-                serde_json::from_str(row.get::<String, _>("task_json").as_str())
+            if rows.is_empty() {
+                break;
+            }
+            for row in rows {
+                cursor = row.get("rowid");
+                let id = TaskId::parse_str(row.get::<String, _>("id").as_str())
                     .map_err(storage_error)?;
-            let credentials = self
-                .load_credentials(row.get::<String, _>("credentials_json").as_str())
-                .await?;
-            let mut input = CreateTaskInput {
-                kind: task.kind.clone(),
-                save_dir: task.save_dir.clone(),
-                file_name: task.file_name.clone(),
-                limits: task.limits.clone(),
-                proxy: task.proxy.clone(),
-                credentials,
-            };
-            input.isolate_sensitive_headers();
-            task.kind = input.kind;
-            task.proxy = input.proxy;
-            let credentials_column = self.store_credentials(id, &input.credentials).await?;
-            sqlx::query("UPDATE tasks SET task_json = ?2, credentials_json = ?3 WHERE id = ?1")
-                .bind(id.to_string())
-                .bind(serde_json::to_string(&task).map_err(storage_error)?)
-                .bind(credentials_column)
-                .execute(&self.pool)
-                .await
-                .map_err(storage_error)?;
-            match &task.kind {
-                TaskKind::Http(config) => {
-                    sqlx::query("UPDATE http_tasks SET original_url = ?2 WHERE task_id = ?1")
-                        .bind(id.to_string())
-                        .bind(config.url.to_string())
-                        .execute(&self.pool)
-                        .await
+                let mut task: DownloadTask =
+                    serde_json::from_str(row.get::<String, _>("task_json").as_str())
                         .map_err(storage_error)?;
-                }
-                TaskKind::Bt(config) => {
-                    sqlx::query("UPDATE bt_tasks SET source_json = ?2 WHERE task_id = ?1")
-                        .bind(id.to_string())
-                        .bind(serde_json::to_string(&config.source).map_err(storage_error)?)
-                        .execute(&self.pool)
-                        .await
-                        .map_err(storage_error)?;
-                    sqlx::query("DELETE FROM bt_trackers WHERE task_id = ?1")
-                        .bind(id.to_string())
-                        .execute(&self.pool)
-                        .await
-                        .map_err(storage_error)?;
-                }
-                TaskKind::Ftp(config) => {
-                    sqlx::query("UPDATE ftp_tasks SET url = ?2 WHERE task_id = ?1")
-                        .bind(id.to_string())
-                        .bind(config.url.to_string())
-                        .execute(&self.pool)
-                        .await
-                        .map_err(storage_error)?;
-                }
-                TaskKind::Sftp(config) => {
-                    sqlx::query("UPDATE sftp_tasks SET url = ?2 WHERE task_id = ?1")
-                        .bind(id.to_string())
-                        .bind(config.url.to_string())
-                        .execute(&self.pool)
-                        .await
-                        .map_err(storage_error)?;
+                let credentials = self
+                    .load_credentials(row.get::<String, _>("credentials_json").as_str())
+                    .await?;
+                let mut input = CreateTaskInput {
+                    kind: task.kind.clone(),
+                    save_dir: task.save_dir.clone(),
+                    file_name: task.file_name.clone(),
+                    limits: task.limits.clone(),
+                    proxy: task.proxy.clone(),
+                    credentials,
+                };
+                input.isolate_sensitive_headers();
+                task.kind = input.kind;
+                task.proxy = input.proxy;
+                let credentials_column = self.store_credentials(id, &input.credentials).await?;
+                sqlx::query("UPDATE tasks SET task_json = ?2, credentials_json = ?3 WHERE id = ?1")
+                    .bind(id.to_string())
+                    .bind(serde_json::to_string(&task).map_err(storage_error)?)
+                    .bind(credentials_column)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(storage_error)?;
+                match &task.kind {
+                    TaskKind::Http(config) => {
+                        sqlx::query("UPDATE http_tasks SET original_url = ?2 WHERE task_id = ?1")
+                            .bind(id.to_string())
+                            .bind(config.url.to_string())
+                            .execute(&self.pool)
+                            .await
+                            .map_err(storage_error)?;
+                    }
+                    TaskKind::Bt(config) => {
+                        sqlx::query("UPDATE bt_tasks SET source_json = ?2 WHERE task_id = ?1")
+                            .bind(id.to_string())
+                            .bind(serde_json::to_string(&config.source).map_err(storage_error)?)
+                            .execute(&self.pool)
+                            .await
+                            .map_err(storage_error)?;
+                        sqlx::query("DELETE FROM bt_trackers WHERE task_id = ?1")
+                            .bind(id.to_string())
+                            .execute(&self.pool)
+                            .await
+                            .map_err(storage_error)?;
+                    }
+                    TaskKind::Ftp(config) => {
+                        sqlx::query("UPDATE ftp_tasks SET url = ?2 WHERE task_id = ?1")
+                            .bind(id.to_string())
+                            .bind(config.url.to_string())
+                            .execute(&self.pool)
+                            .await
+                            .map_err(storage_error)?;
+                    }
+                    TaskKind::Sftp(config) => {
+                        sqlx::query("UPDATE sftp_tasks SET url = ?2 WHERE task_id = ?1")
+                            .bind(id.to_string())
+                            .bind(config.url.to_string())
+                            .execute(&self.pool)
+                            .await
+                            .map_err(storage_error)?;
+                    }
                 }
             }
         }
@@ -191,9 +200,12 @@ impl SqliteTaskStore {
             .await
             .map_err(storage_error)?
         {
-            let settings = serde_json::from_str(row.get::<String, _>("value_json").as_str())
-                .map_err(storage_error)?;
-            self.update_settings(settings).await?;
+            let settings: SettingsSnapshot =
+                serde_json::from_str(row.get::<String, _>("value_json").as_str())
+                    .map_err(storage_error)?;
+            if !settings.bt_trackers.is_empty() {
+                self.update_settings(settings).await?;
+            }
         }
         Ok(())
     }
@@ -287,12 +299,10 @@ impl TaskStore for SqliteTaskStore {
     }
 
     async fn list_tasks(&self, filter: TaskFilter) -> Result<Vec<TaskSummary>> {
-        let rows = sqlx::query("SELECT task_json FROM tasks ORDER BY created_at DESC")
-            .fetch_all(&self.pool)
-            .await
-            .map_err(storage_error)?;
+        let mut rows =
+            sqlx::query("SELECT task_json FROM tasks ORDER BY created_at DESC").fetch(&self.pool);
         let mut tasks = Vec::new();
-        for row in rows {
+        while let Some(row) = rows.try_next().await.map_err(storage_error)? {
             let task: DownloadTask =
                 serde_json::from_str(row.get::<String, _>("task_json").as_str())
                     .map_err(storage_error)?;
@@ -309,6 +319,9 @@ impl TaskStore for SqliteTaskStore {
 
     async fn update_state(&self, task_id: TaskId, state: TaskState) -> Result<()> {
         self.mutate_task(task_id, |task| {
+            if state == TaskState::Resolving {
+                task.error = None;
+            }
             task.state = state.clone();
             task.updated_at = Utc::now();
             if task.state == TaskState::Completed {
@@ -340,6 +353,21 @@ impl TaskStore for SqliteTaskStore {
         write_task(&self.pool, &task).await
     }
 
+    async fn update_limits(&self, id: TaskId, limits: fluxion_core::TaskRateLimit) -> Result<()> {
+        self.mutate_task(id, |task| task.limits = limits).await
+    }
+    async fn update_metadata(
+        &self,
+        id: TaskId,
+        file_name: Option<String>,
+        total: Option<u64>,
+    ) -> Result<()> {
+        self.mutate_task(id, |task| {
+            task.file_name = file_name;
+            task.total_bytes = total;
+        })
+        .await
+    }
     async fn update_error(&self, task_id: TaskId, message: Option<String>) -> Result<()> {
         self.mutate_task(task_id, |task| {
             task.error = message.clone();
@@ -598,38 +626,23 @@ impl SqliteTaskStore {
         // state change racing a progress update) would otherwise overwrite each
         // other. BEGIN IMMEDIATE takes the write lock up front so the read is
         // already serialized against other writers.
-        let mut conn = self.pool.acquire().await.map_err(storage_error)?;
-        sqlx::query("BEGIN IMMEDIATE")
-            .execute(&mut *conn)
+        let mut tx = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
             .await
             .map_err(storage_error)?;
-        let result = async {
-            let row = sqlx::query("SELECT task_json FROM tasks WHERE id = ?1")
-                .bind(task_id.to_string())
-                .fetch_optional(&mut *conn)
-                .await
-                .map_err(storage_error)?
-                .ok_or_else(|| FluxionError::new(FluxionErrorKind::Storage, "task not found"))?;
-            let mut task: DownloadTask =
-                serde_json::from_str(row.get::<String, _>("task_json").as_str())
-                    .map_err(storage_error)?;
-            mutate(&mut task);
-            write_task(&mut *conn, &task).await
-        }
-        .await;
-        match result {
-            Ok(()) => {
-                sqlx::query("COMMIT")
-                    .execute(&mut *conn)
-                    .await
-                    .map_err(storage_error)?;
-                Ok(())
-            }
-            Err(error) => {
-                let _ = sqlx::query("ROLLBACK").execute(&mut *conn).await;
-                Err(error)
-            }
-        }
+        let row = sqlx::query("SELECT task_json FROM tasks WHERE id = ?1")
+            .bind(task_id.to_string())
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(storage_error)?
+            .ok_or_else(|| FluxionError::new(FluxionErrorKind::Storage, "task not found"))?;
+        let mut task: DownloadTask =
+            serde_json::from_str(row.get::<String, _>("task_json").as_str())
+                .map_err(storage_error)?;
+        mutate(&mut task);
+        write_task(&mut *tx, &task).await?;
+        tx.commit().await.map_err(storage_error)
     }
 }
 
@@ -938,6 +951,6 @@ const MIGRATIONS: &[&str] = &[
 ];
 
 pub fn parse_task_id(value: &str) -> Result<TaskId> {
-    TaskId::from_str(value)
+    TaskId::parse_str(value)
         .map_err(|error| FluxionError::new(FluxionErrorKind::InvalidConfig, error.to_string()))
 }

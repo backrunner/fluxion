@@ -74,7 +74,7 @@ async fn pause_waits_for_engine_cancellation_flush() {
     engine.cancel_seen.notified().await;
     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     assert!(!pause.is_finished());
-    engine.allow_finish.notify_waiters();
+    engine.allow_finish.notify_one();
     pause.await.unwrap();
     assert!(engine.flushed.load(Ordering::SeqCst));
     assert_eq!(
@@ -108,8 +108,15 @@ async fn delete_waits_for_engine_before_removing_files() {
     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     assert!(output.exists());
     assert!(!delete.is_finished());
-    engine.allow_finish.notify_waiters();
+    let restart = tokio::spawn({
+        let core = core.clone();
+        async move { core.start_task(id).await }
+    });
+    tokio::task::yield_now().await;
+    assert!(!restart.is_finished());
+    engine.allow_finish.notify_one();
     delete.await.unwrap();
+    assert!(restart.await.unwrap().is_err());
     assert!(!output.exists());
 }
 
@@ -182,9 +189,9 @@ impl DownloadEngine for BlockingEngine {
         _task: PreparedTask,
         control: TaskControl,
     ) -> Result<EngineExit> {
-        self.started.notify_waiters();
+        self.started.notify_one();
         control.cancellation_token().cancelled().await;
-        self.cancel_seen.notify_waiters();
+        self.cancel_seen.notify_one();
         self.allow_finish.notified().await;
         self.flushed.store(true, Ordering::SeqCst);
         Err(fluxion_core::FluxionError::cancelled())

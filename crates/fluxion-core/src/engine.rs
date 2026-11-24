@@ -48,9 +48,14 @@ pub struct EngineContext {
     pub storage: Arc<dyn TaskStore>,
     pub events: EventBus,
     pub(crate) state_providers: StateProviderRegistry,
+    pub(crate) cancellation: tokio_util::sync::CancellationToken,
 }
 
 impl EngineContext {
+    pub async fn cancelled(&self) {
+        self.cancellation.cancelled().await;
+    }
+
     /// Register a runtime state provider for an active task. Engines call this
     /// at the start of `run()` if they can surface protocol-level detail.
     pub async fn register_state_provider(

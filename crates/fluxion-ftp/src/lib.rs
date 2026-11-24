@@ -46,7 +46,13 @@ impl DownloadEngine for FtpEngine {
             .or_else(|| inferred_file_name(&stored_config.url))
             .unwrap_or_else(|| "download".to_string());
         task.task.file_name = Some(fluxion_core::sanitize_file_name(&name));
-        ctx.storage.update_task(task.task.clone()).await?;
+        ctx.storage
+            .update_metadata(
+                task.task.id,
+                task.task.file_name.clone(),
+                task.task.total_bytes,
+            )
+            .await?;
         Ok(task)
     }
 

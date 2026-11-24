@@ -101,6 +101,14 @@ async fn reconnect_with_secret_store_migrates_plaintext_sources_and_settings() {
     );
     assert_eq!(store.get_settings().await.unwrap().bt_trackers.len(), 1);
     assert!(secrets.0.lock().unwrap().len() >= 2);
+    drop(store);
+    let reopened = SqliteTaskStore::connect_with_secrets(&path, secrets)
+        .await
+        .unwrap();
+    assert_eq!(
+        reopened.get_settings().await.unwrap().bt_trackers[0].as_str(),
+        "https://tracker.example/private/announce"
+    );
 }
 
 #[tokio::test]

@@ -18,7 +18,8 @@ pub struct FluxionCore {
     active: Arc<Mutex<HashMap<TaskId, Arc<ActiveTask>>>>,
     limiters: Arc<Limiters>,
     state_providers: StateProviderRegistry,
-    speed_sampler_started: std::sync::atomic::AtomicBool,
+    initialized: tokio::sync::OnceCell<tokio::task::JoinHandle<()>>,
+    lifecycle: [Mutex<()>; 64],
 }
 
 struct ActiveTask {
@@ -43,7 +44,7 @@ impl ActiveTask {
     }
 
     fn mark_finished(&self) {
-        let _ = self.finished.send(true);
+        self.finished.send_replace(true);
     }
 
     async fn wait_finished(&self) {
@@ -66,35 +67,34 @@ impl FluxionCore {
             active: Arc::new(Mutex::new(HashMap::new())),
             limiters: Arc::new(Limiters::default()),
             state_providers: StateProviderRegistry::new(),
-            speed_sampler_started: std::sync::atomic::AtomicBool::new(false),
+            initialized: Default::default(),
+            lifecycle: std::array::from_fn(|_| Mutex::new(())),
         }
     }
 
     pub async fn initialize(&self) -> Result<()> {
-        let settings = self.storage.get_settings().await?;
-        self.limiters
-            .global_download
-            .update_limit(settings.download_limit)
-            .await;
-        self.limiters
-            .global_upload
-            .update_limit(settings.upload_limit)
-            .await;
-        self.recover_interrupted_tasks().await?;
-        self.spawn_speed_sampler();
+        self.initialized
+            .get_or_try_init(|| async {
+                let settings = self.storage.get_settings().await?;
+                self.limiters
+                    .global_download
+                    .update_limit(settings.download_limit)
+                    .await;
+                self.limiters
+                    .global_upload
+                    .update_limit(settings.upload_limit)
+                    .await;
+                self.recover_interrupted_tasks().await?;
+                Ok::<_, FluxionError>(self.spawn_speed_sampler())
+            })
+            .await?;
         Ok(())
     }
 
     /// Emit `TaskSpeed` events by sampling progress deltas once per second
     /// (design §3.4: speed aggregated at 1 s). Runs for the lifetime of the
     /// event bus; guarded so repeated `initialize` calls spawn only one.
-    fn spawn_speed_sampler(&self) {
-        if self
-            .speed_sampler_started
-            .swap(true, std::sync::atomic::Ordering::SeqCst)
-        {
-            return;
-        }
+    fn spawn_speed_sampler(&self) -> tokio::task::JoinHandle<()> {
         let events = self.events.clone();
         let mut rx = self.events.subscribe();
         tokio::spawn(async move {
@@ -143,7 +143,7 @@ impl FluxionCore {
                                 }
                             }
                             Ok(_) => {}
-                            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => tracks.clear(),
                             Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                         }
                     }
@@ -167,7 +167,7 @@ impl FluxionCore {
                     }
                 }
             }
-        });
+        })
     }
 
     /// Crash recovery: tasks left in an in-flight state by a previous process
@@ -202,10 +202,15 @@ impl FluxionCore {
         Ok(detail.task.id)
     }
 
+    // Serialize commands on the same id through the final storage write, including
+    // the interval between a worker exiting and pause/stop persisting its state.
+    fn lifecycle_lock(&self, id: TaskId) -> &Mutex<()> {
+        &self.lifecycle[id.as_bytes()[0] as usize % self.lifecycle.len()]
+    }
+
     pub async fn start_task(&self, task_id: TaskId) -> Result<()> {
-        // Fetch the task first so we can build the control with its limits,
-        // then claim the active slot atomically (check + insert under one
-        // lock hold) so two concurrent starts can never both spawn engines.
+        let _operation = self.lifecycle_lock(task_id).lock().await;
+        let already_running = self.active.lock().await.contains_key(&task_id);
         let detail =
             self.storage.get_task(task_id).await?.ok_or_else(|| {
                 FluxionError::new(FluxionErrorKind::InvalidConfig, "task not found")
@@ -217,6 +222,9 @@ impl FluxionCore {
                 FluxionErrorKind::InvalidConfig,
                 "task is already completed",
             ));
+        }
+        if already_running {
+            return Ok(());
         }
         let kind = detail.task.kind.download_kind();
         let engine = self.engines.get(&kind).cloned().ok_or_else(|| {
@@ -230,18 +238,16 @@ impl FluxionCore {
             self.limiters.clone(),
         );
         let active_task = Arc::new(ActiveTask::new(cancellation, control.clone()));
-        {
-            let mut active = self.active.lock().await;
-            if active.contains_key(&task_id) {
-                return Ok(());
-            }
-            active.insert(task_id, active_task.clone());
-        }
+        self.active
+            .lock()
+            .await
+            .insert(task_id, active_task.clone());
 
         let ctx = EngineContext {
             storage: self.storage.clone(),
             events: self.events.clone(),
             state_providers: self.state_providers.clone(),
+            cancellation: control.cancellation_token(),
         };
         let active = self.active.clone();
 
@@ -262,6 +268,9 @@ impl FluxionCore {
                         },
                     )
                     .await?;
+                if control.is_cancelled() {
+                    return Ok(EngineExit::Cancelled);
+                }
                 inner_ctx.set_state(task_id, TaskState::Downloading).await?;
                 engine.run(inner_ctx, prepared, control).await
             });
@@ -317,6 +326,7 @@ impl FluxionCore {
     }
 
     pub async fn pause_task(&self, task_id: TaskId) -> Result<()> {
+        let _operation = self.lifecycle_lock(task_id).lock().await;
         let active = { self.active.lock().await.get(&task_id).cloned() };
         if let Some(active) = active {
             active.cancel();
@@ -328,6 +338,7 @@ impl FluxionCore {
     }
 
     pub async fn stop_task(&self, task_id: TaskId) -> Result<()> {
+        let _operation = self.lifecycle_lock(task_id).lock().await;
         let active = { self.active.lock().await.get(&task_id).cloned() };
         if let Some(active) = active {
             active.cancel();
@@ -339,6 +350,7 @@ impl FluxionCore {
     }
 
     pub async fn delete_task(&self, task_id: TaskId, delete_files: bool) -> Result<()> {
+        let _operation = self.lifecycle_lock(task_id).lock().await;
         let active = { self.active.lock().await.get(&task_id).cloned() };
         if let Some(active) = active {
             active.cancel();
@@ -474,12 +486,8 @@ impl FluxionCore {
     /// and, when the task is running, pushed into its live `TaskControl` so
     /// they take effect without a restart.
     pub async fn update_task_limits(&self, task_id: TaskId, limits: TaskRateLimit) -> Result<()> {
-        let mut detail =
-            self.storage.get_task(task_id).await?.ok_or_else(|| {
-                FluxionError::new(FluxionErrorKind::InvalidConfig, "task not found")
-            })?;
-        detail.task.limits = limits.clone();
-        self.storage.update_task(detail.task).await?;
+        let _operation = self.lifecycle_lock(task_id).lock().await;
+        self.storage.update_limits(task_id, limits.clone()).await?;
         let active = { self.active.lock().await.get(&task_id).cloned() };
         if let Some(active) = active {
             active.control.update_limits(limits).await;
@@ -518,6 +526,7 @@ impl FluxionCore {
                     storage: self.storage.clone(),
                     events: self.events.clone(),
                     state_providers: self.state_providers.clone(),
+                    cancellation: CancellationToken::new(),
                 },
                 &magnet,
             )
@@ -540,5 +549,31 @@ async fn remove_file_if_exists(path: PathBuf) -> Result<()> {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error.into()),
+    }
+}
+
+impl Drop for FluxionCore {
+    fn drop(&mut self) {
+        if let Some(sampler) = self.initialized.get() {
+            sampler.abort();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn late_waiter_observes_finished_engine() {
+        let token = CancellationToken::new();
+        let active = ActiveTask::new(
+            token.clone(),
+            TaskControl::new(token, Default::default(), Default::default()),
+        );
+        active.mark_finished();
+        tokio::time::timeout(std::time::Duration::from_secs(1), active.wait_finished())
+            .await
+            .expect("completion survives lack of subscribers");
     }
 }
