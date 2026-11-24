@@ -233,7 +233,7 @@ fn signed_updater_rejects_bad_signatures_and_archive_links() {
     }
     let data = compressed.finish().unwrap();
     let dir = tempfile::tempdir().unwrap();
-    assert!(crate::updater::extract(&data, dir.path()).is_err());
+    assert!(crate::updater::extract(data.as_slice(), dir.path()).is_err());
 }
 
 #[test]

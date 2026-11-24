@@ -109,12 +109,12 @@ fn extraction_accepts_one_bundle_and_rejects_other_roots() {
         ("Fluxion.app/Contents/Info.plist", b"plist"),
     ]);
     let temp = tempfile::tempdir().unwrap();
-    assert!(extract(&good, temp.path()).is_ok());
+    assert!(extract(good.as_slice(), temp.path()).is_ok());
     for path in ["Other.app/Contents/test", "install.sh"] {
         let temp = tempfile::tempdir().unwrap();
-        assert!(extract(&archive(&[(path, b"bad")]), temp.path()).is_err());
+        assert!(extract(archive(&[(path, b"bad")]).as_slice(), temp.path()).is_err());
     }
-    assert!(extract(b"not an archive", temp.path()).is_err());
+    assert!(extract(&b"not an archive"[..], temp.path()).is_err());
 }
 #[test]
 fn staged_bundle_mutation_and_symlinks_are_detected() {
@@ -134,10 +134,10 @@ fn accepts_base64_wrapped_minisign_and_rejects_modified_payload() {
     let key = "untrusted comment: test public key\nRWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3";
     let signature = "untrusted comment: signature from minisign secret key\nRUQf6LRCGA9i559r3g7V1qNyJDApGip8MfqcadIgT9CuhV3EMhHoN1mGTkUidF/z7SrlQgXdy8ofjb7bNJJylDOocrCo8KLzZwo=\ntrusted comment: timestamp:1556193335\tfile:test\ny/rUw2y8/hOUYjZU71eHp/Wo1KZ40fGy2VJEDl34XMJM+TX48Ss/17u3IvIfbVR1FkZZSNCisQbuQY+bHwhEBg==";
     let encode = |text: &str| base64::engine::general_purpose::STANDARD.encode(text);
-    assert!(verify_with_key(b"test", &encode(signature), &encode(key)).is_ok());
-    assert!(verify_with_key(b"Test", &encode(signature), &encode(key)).is_err());
+    assert!(verify_with_key(&b"test"[..], &encode(signature), &encode(key)).is_ok());
+    assert!(verify_with_key(&b"Test"[..], &encode(signature), &encode(key)).is_err());
     assert!(
-        verify(b"test", &encode(signature)).is_err(),
+        verify(&b"test"[..], &encode(signature)).is_err(),
         "a different signing key must not be trusted"
     );
 }

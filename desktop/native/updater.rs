@@ -258,11 +258,15 @@ fn select_release(
     Ok(selected)
 }
 #[cfg(not(feature = "app-store"))]
-pub fn verify(data: &[u8], signature: &str) -> anyhow::Result<()> {
+pub(crate) fn verify(data: impl std::io::Read, signature: &str) -> anyhow::Result<()> {
     verify_with_key(data, signature, PUBLIC_KEY)
 }
 #[cfg(not(feature = "app-store"))]
-fn verify_with_key(data: &[u8], signature: &str, public_key: &str) -> anyhow::Result<()> {
+fn verify_with_key(
+    mut data: impl std::io::Read,
+    signature: &str,
+    public_key: &str,
+) -> anyhow::Result<()> {
     let decode = |s: &str| -> anyhow::Result<String> {
         Ok(String::from_utf8(
             base64::engine::general_purpose::STANDARD.decode(s)?,
@@ -270,7 +274,26 @@ fn verify_with_key(data: &[u8], signature: &str, public_key: &str) -> anyhow::Re
     };
     let key = minisign_verify::PublicKey::decode(&decode(public_key)?)?;
     let signature = minisign_verify::Signature::decode(&decode(signature)?)?;
-    key.verify(data, &signature, true)?;
+    match key.verify_stream(&signature) {
+        Ok(mut verifier) => {
+            let mut buffer = [0; 64 * 1024];
+            loop {
+                let count = data.read(&mut buffer)?;
+                if count == 0 {
+                    break;
+                }
+                verifier.update(&buffer[..count]);
+            }
+            verifier.finalize()?;
+        }
+        Err(minisign_verify::Error::UnsupportedLegacyMode) => {
+            // Legacy Ed25519 signatures require the original message in one slice.
+            let mut bytes = Vec::new();
+            data.read_to_end(&mut bytes)?;
+            key.verify(&bytes, &signature, true)?;
+        }
+        Err(error) => return Err(error.into()),
+    }
     Ok(())
 }
 #[cfg(not(feature = "app-store"))]
@@ -335,28 +358,34 @@ pub async fn prepare(
         total.is_none_or(|n| n <= 512 * 1024 * 1024),
         "Update archive exceeds 512 MB"
     );
-    let mut data = Vec::new();
+    use tokio::io::{AsyncSeekExt, AsyncWriteExt};
+    let mut archive = tokio::fs::File::from_std(tempfile::tempfile_in(staging.path())?);
+    let mut downloaded = 0u64;
     let mut last = std::time::Instant::now();
     let _ = tx.send(Message::UpdateProgress(0, total)).await;
     while let Some(chunk) = response.chunk().await? {
         anyhow::ensure!(
-            data.len() + chunk.len() <= 512 * 1024 * 1024,
+            downloaded + chunk.len() as u64 <= 512 * 1024 * 1024,
             "Update archive exceeds 512 MB"
         );
-        data.extend_from_slice(&chunk);
+        archive.write_all(&chunk).await?;
+        downloaded += chunk.len() as u64;
         if last.elapsed() > Duration::from_millis(250) {
-            let _ = tx
-                .send(Message::UpdateProgress(data.len() as u64, total))
-                .await;
+            let _ = tx.send(Message::UpdateProgress(downloaded, total)).await;
             last = std::time::Instant::now();
         }
     }
+    archive.flush().await?;
+    archive.rewind().await?;
+    let mut archive = archive.into_std().await;
     let _ = tx.send(Message::UpdateVerifying).await;
     let signature = release.platforms[target()].signature.clone();
     let archive_path = staging.path().to_owned();
     let unpacked = tokio::task::spawn_blocking(move || {
-        verify(&data, &signature)?;
-        extract(&data, &archive_path)
+        use std::io::Seek;
+        verify(&mut archive, &signature)?;
+        archive.rewind()?;
+        extract(archive, &archive_path)
     })
     .await??;
     validate_bundle(&unpacked, &release.version).await?;
@@ -439,7 +468,7 @@ fn bundle_digest(root: &Path) -> anyhow::Result<[u8; 32]> {
     Ok(hash.finalize().into())
 }
 #[cfg(not(feature = "app-store"))]
-pub fn extract(data: &[u8], destination: &Path) -> anyhow::Result<PathBuf> {
+pub(crate) fn extract(data: impl std::io::Read, destination: &Path) -> anyhow::Result<PathBuf> {
     let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(data));
     let mut expanded = 0u64;
     let mut entries = 0usize;
