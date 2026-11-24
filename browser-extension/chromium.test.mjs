@@ -94,21 +94,25 @@ test("Chromium capture: real webRequest cookies, threshold, unknown size, UI and
     assert.deepEqual(messages.map(m => m.action), ["add_download"]);
     assert(requests.some(r => r.cookie === "session=fixture-cookie"));
 
+    await page.goto(origin);
     const smallEvent = page.waitForEvent("download");
     await page.getByText("small", { exact: true }).click();
     assert.equal(await (await smallEvent).failure(), null);
     assert.equal((await worker.evaluate(() => globalThis.messages)).length, 1);
 
+    await page.goto(origin);
     const unknownEvent = page.waitForEvent("download");
     await page.getByText("unknown", { exact: true }).click();
     assert.equal(await (await unknownEvent).failure(), null);
     assert.equal((await worker.evaluate(() => globalThis.messages)).length, 1);
 
+    await page.goto(origin);
     await setSettings({ captureUnknown: true });
     await page.getByText("unknown", { exact: true }).click();
     await waitMessage("add_download", 2);
 
     await setSettings({});
+    await page.goto(origin);
     await page.getByText("visible", { exact: true }).click();
     const visibleMessages = await waitMessage("add_download", 3);
     const visible = visibleMessages.find(m => m.download?.url === `${origin}/file-visible`);
@@ -116,6 +120,7 @@ test("Chromium capture: real webRequest cookies, threshold, unknown size, UI and
 
     await setSettings({});
     await worker.evaluate(() => { globalThis.failAdd = true; });
+    await page.goto(origin);
     const fallbackEvent = page.waitForEvent("download");
     await page.getByText("large", { exact: true }).click();
     assert.equal(await (await fallbackEvent).failure(), null);
@@ -123,6 +128,7 @@ test("Chromium capture: real webRequest cookies, threshold, unknown size, UI and
 
     await setSettings({});
     await worker.evaluate(() => { globalThis.failAdd = false; globalThis.holdForm = true; });
+    await page.goto(origin);
     const cancelledEvent = page.waitForEvent("download");
     await page.getByText("large", { exact: true }).click();
     await waitMessage("add_download", 5);
